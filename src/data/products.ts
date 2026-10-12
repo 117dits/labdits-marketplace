@@ -2,6 +2,8 @@ import finance from '@/assets/financeflow.jpg';
 import retail from '@/assets/retailpos.jpg';
 import task from '@/assets/taskpilot.jpg';
 import event from '@/assets/eventsphere.jpg';
+import commerce from '@/assets/commercekit.svg';
+import wedding from '@/assets/sakinah.svg';
 import type { Product, Order, Customer } from '@/types';
 export const categories = ['Admin Dashboards', 'Business Websites', 'POS Systems', 'SaaS Applications', 'E-Commerce', 'Landing Pages', 'Custom Applications'];
 export const money = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
@@ -13,9 +15,9 @@ product('1', 'FinanceFlow', 'Financial Management Dashboard', 'Admin Dashboards'
 product('2', 'RetailPOS', 'Modern Point of Sale System', 'POS Systems', 1499000, retail, 'coral', ['Fast checkout experience', 'Product & inventory management', 'Receipt generation', 'Customer loyalty tools', 'Sales analytics', 'Multi-store ready']),
 product('3', 'TaskPilot', 'Project Management SaaS', 'SaaS Applications', 1299000, task, 'violet', ['Drag-and-drop Kanban boards', 'Team workspaces', 'Task assignments', 'Project timelines', 'Activity feed', 'Time tracking']),
 product('4', 'EventSphere', 'Event Ticketing Platform', 'Business Websites', 1899000, event, 'lime', ['Event discovery', 'Ticket selection', 'Organizer dashboard', 'QR ticket design', 'Event analytics', 'Responsive event pages']),
-product('5', 'CommerceKit', 'E-Commerce Admin Dashboard', 'E-Commerce', 999000, finance, 'cyan', ['Order management', 'Inventory tracking', 'Customer profiles', 'Discount campaigns', 'Product catalog', 'Revenue analytics'], ['Next.js', 'TypeScript', 'Tailwind CSS']),
-product('6', 'Sakinah', 'Digital Wedding Invitation Platform', 'Landing Pages', 499000, event, 'rose', ['Personalized invitations', 'RSVP management', 'Photo gallery', 'Event countdown', 'Guest messages', 'Beautiful mobile layouts'], ['React', 'TypeScript', 'Motion']),
+product('5', 'CommerceKit', 'E-Commerce Admin Dashboard', 'E-Commerce', 999000, commerce, 'cyan', ['Order management', 'Inventory tracking', 'Customer profiles', 'Discount campaigns', 'Product catalog', 'Revenue analytics'], ['Next.js', 'TypeScript', 'Tailwind CSS']),
+product('6', 'Sakinah', 'Digital Wedding Invitation Platform', 'Landing Pages', 499000, wedding, 'rose', ['Personalized invitations', 'RSVP management', 'Photo gallery', 'Event countdown', 'Guest messages', 'Beautiful mobile layouts'], ['React', 'TypeScript', 'Motion']),
 ];
-export const seedCustomers: Customer[] = [{ id:'c1', name:'Aditya Pratama', email:'aditya@example.com', whatsapp:'081234567890', status:'Active' }, { id:'c2', name:'Sarah Wijaya', email:'sarah@example.com', whatsapp:'081298765432', status:'Active' }, { id:'c3', name:'Bima Santoso', email:'bima@example.com', whatsapp:'081211223344', status:'Inactive' }];
+export const seedCustomers: [Customer, Customer, Customer] = [{ id:'c1', name:'Aditya Pratama', email:'aditya@example.com', whatsapp:'081234567890', status:'Active' }, { id:'c2', name:'Sarah Wijaya', email:'sarah@example.com', whatsapp:'081298765432', status:'Active' }, { id:'c3', name:'Bima Santoso', email:'bima@example.com', whatsapp:'081211223344', status:'Inactive' }];
 export const seedOrders: Order[] = [{ id:'LAB-1042', customer:seedCustomers[0], items:[{ productId:'1', license:'commercial', quantity:1 }], total:1798000, date:'2026-10-10', paymentMethod:'QRIS', status:'Paid', simulated:true },{ id:'LAB-1041', customer:seedCustomers[1], items:[{ productId:'2', license:'personal', quantity:1 }], total:1499000, date:'2026-10-09', paymentMethod:'Virtual Account', status:'Paid', simulated:true },{ id:'LAB-1040', customer:seedCustomers[2], items:[{ productId:'3', license:'personal', quantity:1 }], total:1299000, date:'2026-10-08', paymentMethod:'Bank Transfer', status:'Pending', simulated:true }];
 export const chartData = [{ name:'May', revenue:18, views:2100 },{ name:'Jun', revenue:26, views:3200 },{ name:'Jul', revenue:22, views:2900 },{ name:'Aug', revenue:41, views:4700 },{ name:'Sep', revenue:35, views:4100 },{ name:'Oct', revenue:57, views:6200 }];
