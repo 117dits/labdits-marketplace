@@ -22,7 +22,7 @@ export function reachedStage(p?: ProjectRecord) {
 }
 export function currentStatus(p?: ProjectRecord): DeploymentStatus { return p?.deployment?.status ?? p?.localStatus ?? 'pending'; }
 
-export function DeploymentPipeline({ project }: { project?: ProjectRecord }) {
+export function DeploymentPipeline({ project }: { project?: ProjectRecord | undefined }) {
   const reached = reachedStage(project), status = currentStatus(project);
   return <ol className="grid gap-2 sm:grid-cols-2" aria-label="Deployment stages">{DEPLOYMENT_STAGES.map((s, i) => {
     const done = i < reached, active = i === reached && status !== 'ready';
@@ -46,7 +46,7 @@ function FileTree({ files }: { files: { path: string; size: number }[] }) {
   </div>;
 }
 
-export function ProjectUploader({ productId, value, onChange }: { productId: string; value?: ProjectRecord; onChange: (p: ProjectRecord | undefined) => void }) {
+export function ProjectUploader({ productId, value, onChange }: { productId: string; value?: ProjectRecord | undefined; onChange: (p: ProjectRecord | undefined) => void }) {
   const fileRef = useRef<HTMLInputElement>(null), folderRef = useRef<HTMLInputElement>(null);
   const raw = useRef<File[]>([]); const abort = useRef<AbortController | null>(null);
   const [problems, setProblems] = useState<string[]>([]), [progress, setProgress] = useState(0), [busy, setBusy] = useState(false);

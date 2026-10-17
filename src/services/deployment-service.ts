@@ -7,7 +7,7 @@ import type { AnalyzeResponse, BuildConfig, DeploymentResponse, LogsResponse, Pr
 export class BackendNotConnectedError extends Error { constructor() { super('Backend Integration Required: no deployment API is configured.'); this.name = 'BackendNotConnectedError'; } }
 export class DeploymentApiError extends Error { constructor(message: string, public status: number) { super(message); this.name = 'DeploymentApiError'; } }
 
-function apiBase(): string | null { const v = import.meta.env.VITE_LABDITS_API_URL as string | undefined; return v ? v.replace(/\/$/, '') : null; }
+function apiBase(): string | null { const v = import.meta.env['VITE_LABDITS_API_URL'] as string | undefined; return v ? v.replace(/\/$/, '') : null; }
 export function isDeploymentBackendConnected() { return apiBase() !== null; }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -41,7 +41,7 @@ export const deploymentService = {
   /** POST /api/projects/:id/deploy */
   deploy(projectId: string, config: BuildConfig) { return request<DeploymentResponse>(`/api/projects/${encodeURIComponent(projectId)}/deploy`, { method: 'POST', body: JSON.stringify(config) }); },
   /** GET /api/projects/:id/deployment */
-  getDeployment(projectId: string, signal?: AbortSignal) { return request<DeploymentResponse>(`/api/projects/${encodeURIComponent(projectId)}/deployment`, { signal }); },
+  getDeployment(projectId: string, signal?: AbortSignal) { return request<DeploymentResponse>(`/api/projects/${encodeURIComponent(projectId)}/deployment`, { signal: signal ?? null }); },
   /** GET /api/projects/:id/logs */
   getLogs(projectId: string) { return request<LogsResponse>(`/api/projects/${encodeURIComponent(projectId)}/logs`); },
   /** GET /api/projects/:id/preview */

@@ -2,7 +2,7 @@
 // it only lists file names and parses small JSON/text metadata files.
 import type { PackageManager, ProjectAnalysis, ProjectFileEntry, Compatibility } from '@/types/deployment';
 
-export interface InspectableEntry extends ProjectFileEntry { read?: () => Promise<string> }
+export interface InspectableEntry extends ProjectFileEntry { read?: (() => Promise<string>) | undefined }
 
 export const KEY_FILES = ['package.json','package-lock.json','pnpm-lock.yaml','yarn.lock','bun.lockb','bun.lock','vite.config.ts','vite.config.js','vite.config.mjs','next.config.js','next.config.mjs','next.config.ts','index.html','angular.json','astro.config.mjs','astro.config.ts','nuxt.config.ts','nuxt.config.js','svelte.config.js','tsconfig.json','tailwind.config.js','tailwind.config.ts','composer.json','artisan','manage.py','requirements.txt','.env','.env.example','.env.sample'];
 const READABLE = new Set(['package.json','angular.json','.env.example','.env.sample','composer.json']);
@@ -64,7 +64,7 @@ export function entriesFromFiles(files: File[]): InspectableEntry[] {
   });
 }
 
-export interface InspectionResult { root?: string; entries: InspectableEntry[]; problems: string[]; totalSize: number }
+export interface InspectionResult { root?: string | undefined; entries: InspectableEntry[]; problems: string[]; totalSize: number }
 export function inspectEntries(raw: InspectableEntry[]): InspectionResult {
   const problems: string[] = [];
   const unsafe = raw.filter(e => isUnsafePath(e.path));
@@ -140,8 +140,8 @@ export async function analyzeProject(entries: InspectableEntry[], fallbackName: 
 
   // Build command: only from an actual script, never invented.
   const run = packageManager === 'yarn' ? 'yarn' : packageManager === 'pnpm' ? 'pnpm run' : packageManager === 'bun' ? 'bun run' : 'npm run';
-  const buildCommand = framework === 'Static HTML' ? '' : scripts.build ? `${run} build` : null;
-  if (pkg && !scripts.build) notes.push('No "build" script found in package.json.');
+  const buildCommand = framework === 'Static HTML' ? '' : scripts['build'] ? `${run} build` : null;
+  if (pkg && !scripts['build']) notes.push('No "build" script found in package.json.');
   const installCommand = !pkg ? '' : packageManager === 'pnpm' ? 'pnpm install --frozen-lockfile' : packageManager === 'yarn' ? 'yarn install --frozen-lockfile' : packageManager === 'bun' ? 'bun install' : packageManager === 'npm' ? 'npm ci' : null;
 
   // Environment variables
