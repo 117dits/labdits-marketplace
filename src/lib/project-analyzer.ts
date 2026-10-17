@@ -2,7 +2,7 @@
 // it only lists file names and parses small JSON/text metadata files.
 import type { PackageManager, ProjectAnalysis, ProjectFileEntry, Compatibility } from '@/types/deployment';
 
-export interface InspectableEntry extends ProjectFileEntry { read?: () => Promise<string> }
+export interface InspectableEntry extends ProjectFileEntry { read?: (() => Promise<string>) | undefined }
 
 export const KEY_FILES = ['package.json','package-lock.json','pnpm-lock.yaml','yarn.lock','bun.lockb','bun.lock','vite.config.ts','vite.config.js','vite.config.mjs','next.config.js','next.config.mjs','next.config.ts','index.html','angular.json','astro.config.mjs','astro.config.ts','nuxt.config.ts','nuxt.config.js','svelte.config.js','tsconfig.json','tailwind.config.js','tailwind.config.ts','composer.json','artisan','manage.py','requirements.txt','.env','.env.example','.env.sample'];
 const READABLE = new Set(['package.json','angular.json','.env.example','.env.sample','composer.json']);

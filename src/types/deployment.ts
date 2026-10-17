@@ -92,7 +92,7 @@ export interface ProjectRecord {
   deployment?: DeploymentResponse;
   /** Local-only status used before the backend takes over. */
   localStatus: DeploymentStatus;
-  localMessage?: string;
+  localMessage?: string | undefined;
 }
 
 export function isDeploymentLive(d?: DeploymentResponse | null): d is DeploymentResponse & { previewUrl: string } {
