@@ -14,3 +14,5 @@
 - Keep this prototype entirely frontend-only behind a typed mock service adapter and shared MarketplaceProvider; backend replacements must not leak into presentation code.
 - Read and write mock persistence only after hydration or from browser event handlers; SSR must render deterministic seed content.
 - Use global semantic design tokens, shadcn buttons, Motion with reduced-motion support, and bundled preview assets; this keeps branding and accessibility consistent.
+- Project deployment goes only through src/services/deployment-service.ts (VITE_LABDITS_API_URL); without it the UI shows "Backend Integration Required" and never fakes a deployment, so demos are live only via isDeploymentLive (verified https URL).
+- Uploaded projects are inspected read-only in the browser (src/lib/project-analyzer.ts); never execute uploaded code client-side.
