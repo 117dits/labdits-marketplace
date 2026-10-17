@@ -103,7 +103,7 @@ export function ProjectUploader({ productId, value, onChange }: { productId: str
   return <div className="form-stack">
     {!connected && <div className="notice"><Info /><span><strong>Backend Integration Required.</strong> Selection, inspection and framework detection run in your browser now. Uploading, building and hosting need the LABDITS deployment API (set <code>VITE_LABDITS_API_URL</code>). The product stays a draft until a verified demo exists.</span></div>}
     <div className="upload-zone" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); void select(e.dataTransfer.files); }}>
-      <Upload /><h3>Drop a project ZIP or files here.</h3><p>ZIP, project folder, or multiple files · 100 MB per file · 500 MB total · Code is never executed here</p>
+      <Upload /><h3>Drop a project ZIP or files here.</h3><p>ZIP, project folder, or multiple files · No app-imposed size limit · Code is never executed here</p>
       <div className="flex flex-wrap justify-center gap-3"><Button type="button" onClick={() => fileRef.current?.click()}><FileArchive />Choose ZIP or files</Button><Button type="button" variant="outline" onClick={() => folderRef.current?.click()}><FolderOpen />Choose folder</Button></div>
       <input ref={fileRef} type="file" multiple hidden onChange={e => { void select(e.target.files); e.target.value = ''; }} />
       <input ref={folderRef} type="file" hidden multiple {...{ webkitdirectory: '', directory: '' }} onChange={e => { void select(e.target.files); e.target.value = ''; }} />

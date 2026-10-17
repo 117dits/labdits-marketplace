@@ -6,8 +6,6 @@ export interface InspectableEntry extends ProjectFileEntry { read?: (() => Promi
 
 export const KEY_FILES = ['package.json','package-lock.json','pnpm-lock.yaml','yarn.lock','bun.lockb','bun.lock','vite.config.ts','vite.config.js','vite.config.mjs','next.config.js','next.config.mjs','next.config.ts','index.html','angular.json','astro.config.mjs','astro.config.ts','nuxt.config.ts','nuxt.config.js','svelte.config.js','tsconfig.json','tailwind.config.js','tailwind.config.ts','composer.json','artisan','manage.py','requirements.txt','.env','.env.example','.env.sample'];
 const READABLE = new Set(['package.json','angular.json','.env.example','.env.sample','composer.json']);
-export const MAX_FILE_BYTES = 100 * 1024 * 1024;
-export const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
 const IGNORED = /(^|\/)(node_modules|\.git|\.next|dist|build|\.output|\.svelte-kit)\//;
 
 export function isUnsafePath(path: string) { return path.startsWith('/') || /^[a-zA-Z]:/.test(path) || path.split(/[\\/]/).includes('..'); }
@@ -69,13 +67,10 @@ export function inspectEntries(raw: InspectableEntry[]): InspectionResult {
   const problems: string[] = [];
   const unsafe = raw.filter(e => isUnsafePath(e.path));
   if (unsafe.length) problems.push(`${unsafe.length} file path(s) try to escape the project folder (for example "${unsafe[0]?.path}").`);
-  const big = raw.filter(e => e.size > MAX_FILE_BYTES);
-  if (big.length) problems.push(`${big.length} file(s) exceed the 100 MB per-file limit.`);
   const filtered = raw.filter(e => !isUnsafePath(e.path));
   const { root, entries } = stripRoot(filtered);
   const kept = entries.filter(e => !IGNORED.test(`/${e.path}`));
   const totalSize = kept.reduce((s, e) => s + e.size, 0);
-  if (totalSize > MAX_TOTAL_BYTES) problems.push('The project exceeds the 500 MB total limit. Remove build output and dependencies.');
   if (!kept.length) problems.push('No project files were found.');
   return { root, entries: kept, problems, totalSize };
 }
