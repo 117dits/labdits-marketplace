@@ -1,35 +1,74 @@
 // Contracts shared by the project uploader, deployment UI, demo viewer and the future backend.
 
 export type DeploymentStatus =
-  | 'pending'
-  | 'uploading'
-  | 'analyzing'
-  | 'building'
-  | 'deploying'
-  | 'ready'
-  | 'failed'
-  | 'configuration_required'
-  | 'backend_required';
+  | "pending"
+  | "uploading"
+  | "analyzing"
+  | "building"
+  | "deploying"
+  | "ready"
+  | "failed"
+  | "configuration_required"
+  | "backend_required";
 
 /** Ordered pipeline stages. Indices are shared with the backend `stage` field. */
 export const DEPLOYMENT_STAGES = [
-  'Files Selected',
-  'Project Validated',
-  'Uploaded to Storage',
-  'Framework Detected',
-  'Waiting for Build',
-  'Installing Dependencies',
-  'Building Application',
-  'Deploying Preview',
-  'Health Check',
-  'Live Demo Ready',
+  "Files Selected",
+  "Project Validated",
+  "Uploaded to Storage",
+  "Framework Detected",
+  "Waiting for Build",
+  "Installing Dependencies",
+  "Building Application",
+  "Deploying Preview",
+  "Health Check",
+  "Live Demo Ready",
 ] as const;
 export type DeploymentStage = (typeof DEPLOYMENT_STAGES)[number];
 
-export type Compatibility = 'supported' | 'configuration_required' | 'unsupported';
-export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'none' | 'unknown';
+export type Compatibility = "supported" | "configuration_required" | "unsupported";
+export type PackageManager = "npm" | "pnpm" | "yarn" | "bun" | "none" | "unknown";
 
-export interface ProjectFileEntry { path: string; size: number }
+export const SUPPORTED_PROJECT_LANGUAGES = [
+  "TypeScript",
+  "JavaScript",
+  "HTML / CSS / JavaScript",
+] as const;
+
+export const SUPPORTED_PROJECT_FRAMEWORKS = [
+  "React + Vite",
+  "React (Create React App)",
+  "Preact + Vite",
+  "Vite",
+  "TanStack Start",
+  "Next.js",
+  "Remix",
+  "Vue.js + Vite",
+  "Vue.js (Vue CLI)",
+  "Nuxt",
+  "Svelte + Vite",
+  "SvelteKit",
+  "Astro",
+  "Angular",
+  "SolidStart",
+  "Qwik",
+  "Gatsby",
+  "Static HTML",
+] as const;
+
+export const SPECIAL_RUNTIME_FRAMEWORKS = [
+  "Express",
+  "Fastify",
+  "Koa",
+  "NestJS",
+  "Laravel",
+  "Django",
+] as const;
+
+export interface ProjectFileEntry {
+  path: string;
+  size: number;
+}
 
 export interface ProjectAnalysis {
   projectName: string;
@@ -47,10 +86,16 @@ export interface ProjectAnalysis {
   compatibility: Compatibility;
   keyFiles: string[];
   notes: string[];
-  confidence: 'high' | 'medium' | 'low';
+  confidence: "high" | "medium" | "low";
 }
 
-export interface BuildConfig { installCommand: string; buildCommand: string; outputDirectory: string; nodeVersion: string; envNotes: string }
+export interface BuildConfig {
+  installCommand: string;
+  buildCommand: string;
+  outputDirectory: string;
+  nodeVersion: string;
+  envNotes: string;
+}
 
 /** Shape the backend must return from GET /api/projects/:id/deployment */
 export interface DeploymentResponse {
@@ -73,18 +118,43 @@ export interface DeploymentResponse {
   updatedAt: string;
 }
 
-export interface UploadResponse { projectId: string; uploadId: string; fileCount: number; totalSize: number }
-export interface AnalyzeResponse { projectId: string; analysis: ProjectAnalysis }
-export interface LogLine { timestamp: string; level: 'info' | 'warn' | 'error'; message: string }
-export interface LogsResponse { projectId: string; deploymentId: string | null; lines: LogLine[] }
-export interface PreviewResponse { projectId: string; previewUrl: string | null; verified: boolean; embeddable: boolean }
-export interface PublishResponse { projectId: string; published: boolean; errorMessage: string | null }
+export interface UploadResponse {
+  projectId: string;
+  uploadId: string;
+  fileCount: number;
+  totalSize: number;
+}
+export interface AnalyzeResponse {
+  projectId: string;
+  analysis: ProjectAnalysis;
+}
+export interface LogLine {
+  timestamp: string;
+  level: "info" | "warn" | "error";
+  message: string;
+}
+export interface LogsResponse {
+  projectId: string;
+  deploymentId: string | null;
+  lines: LogLine[];
+}
+export interface PreviewResponse {
+  projectId: string;
+  previewUrl: string | null;
+  verified: boolean;
+  embeddable: boolean;
+}
+export interface PublishResponse {
+  projectId: string;
+  published: boolean;
+  errorMessage: string | null;
+}
 
 /** Persisted project record attached to a Product (File objects are never persisted). */
 export interface ProjectRecord {
   projectId?: string;
   uploadId?: string;
-  sourceType: 'zip' | 'folder' | 'files';
+  sourceType: "zip" | "folder" | "files";
   files: ProjectFileEntry[];
   totalSize: number;
   analysis?: ProjectAnalysis;
@@ -95,6 +165,14 @@ export interface ProjectRecord {
   localMessage?: string | undefined;
 }
 
-export function isDeploymentLive(d?: DeploymentResponse | null): d is DeploymentResponse & { previewUrl: string } {
-  return !!d && d.status === 'ready' && d.verified === true && typeof d.previewUrl === 'string' && /^https:\/\//.test(d.previewUrl);
+export function isDeploymentLive(
+  d?: DeploymentResponse | null,
+): d is DeploymentResponse & { previewUrl: string } {
+  return (
+    !!d &&
+    d.status === "ready" &&
+    d.verified === true &&
+    typeof d.previewUrl === "string" &&
+    /^(?:https:\/\/|http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\/)/.test(d.previewUrl)
+  );
 }

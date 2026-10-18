@@ -7,27 +7,51 @@ import type { AnalyzeResponse, BuildConfig, DeploymentResponse, LogsResponse, Pr
 export class BackendNotConnectedError extends Error { constructor() { super('Backend Integration Required: no deployment API is configured.'); this.name = 'BackendNotConnectedError'; } }
 export class DeploymentApiError extends Error { constructor(message: string, public status: number) { super(message); this.name = 'DeploymentApiError'; } }
 
-function apiBase(): string | null { const v = import.meta.env['VITE_LABDITS_API_URL'] as string | undefined; return v ? v.replace(/\/$/, '') : null; }
+function apiBase(): string | null {
+  const configured = import.meta.env['VITE_LABDITS_API_URL'] as string | undefined;
+  if (configured) return configured.replace(/\/$/, '');
+  return import.meta.env.DEV ? 'http://127.0.0.1:8787' : null;
+}
 export function isDeploymentBackendConnected() { return apiBase() !== null; }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const base = apiBase(); if (!base) throw new BackendNotConnectedError();
+  const local = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(base);
   // Admin auth is expected via HttpOnly session cookie on the API origin; no secrets live in the frontend.
-  const res = await fetch(`${base}${path}`, { credentials: 'include', ...init, headers: { Accept: 'application/json', ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...init.headers } });
+  const res = await fetch(`${base}${path}`, { credentials: local ? 'omit' : 'include', ...init, headers: { Accept: 'application/json', ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...init.headers } });
   if (!res.ok) { let msg = `Request failed (${res.status})`; try { const j = await res.json(); if (j?.errorMessage || j?.message) msg = j.errorMessage || j.message; } catch { /* keep default */ } throw new DeploymentApiError(msg, res.status); }
   return res.json() as Promise<T>;
 }
 
 export const deploymentService = {
   /** POST /api/projects/upload — multipart; field "files" with relative paths as filenames. */
-  upload(files: File[], meta: { productId: string; sourceType: string }, onProgress: (pct: number) => void, signal: AbortSignal): Promise<UploadResponse> {
+  upload(files: File[], meta: { productId: string; sourceType: string; files?: { path: string; size: number }[] }, onProgress: (pct: number) => void, signal: AbortSignal): Promise<UploadResponse> {
     const base = apiBase(); if (!base) return Promise.reject(new BackendNotConnectedError());
+    const local = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(base);
+    if (local && files.some((file) => file.webkitRelativePath)) {
+      const firstPath = files.find((file) => file.webkitRelativePath)?.webkitRelativePath ?? '';
+      const rootName = firstPath.split('/')[0] ?? '';
+      const manifest = meta.files ?? files.map((file) => ({
+          path: (file.webkitRelativePath || file.name).replace(new RegExp(`^${rootName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`), ''),
+          size: file.size,
+        }));
+      onProgress(10);
+      return request<UploadResponse>('/api/projects/import-local', {
+        method: 'POST',
+        signal,
+        body: JSON.stringify({ productId: meta.productId, sourceType: meta.sourceType, rootName, files: manifest }),
+      }).then((result) => {
+        onProgress(100);
+        return result;
+      });
+    }
     return new Promise((resolve, reject) => {
       const form = new FormData();
       form.append('productId', meta.productId); form.append('sourceType', meta.sourceType);
       files.forEach(f => form.append('files', f, f.webkitRelativePath || f.name));
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${base}/api/projects/upload`); xhr.withCredentials = true;
+      xhr.open('POST', `${base}/api/projects/upload`);
+      xhr.withCredentials = !/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(base);
       xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
       xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new DeploymentApiError('Invalid upload response', xhr.status)); } } else reject(new DeploymentApiError(`Upload failed (${xhr.status})`, xhr.status)); };
       xhr.onerror = () => reject(new DeploymentApiError('Network error during upload', 0));
