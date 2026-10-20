@@ -24,9 +24,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     apikey: supabaseKey,
     Authorization: `Bearer ${supabaseKey}`,
   } : {};
-  // Admin auth is expected via HttpOnly session cookie on the API origin; no secrets live in the frontend.
   const res = await fetch(`${base}${path}`, {
-    credentials: local ? 'omit' : 'include',
+    credentials: 'omit',
     ...init,
     headers: {
       Accept: 'application/json',
@@ -64,10 +63,17 @@ export const deploymentService = {
     return new Promise((resolve, reject) => {
       const form = new FormData();
       form.append('productId', meta.productId); form.append('sourceType', meta.sourceType);
-      files.forEach(f => form.append('files', f, f.webkitRelativePath || f.name));
+      const skipPrefixes = ['.git/', 'node_modules/', '.next/', 'dist/', 'build/', '.cache/', '.vercel/', 'test-results/', 'artifacts/'];
+      files.forEach(f => {
+        const path = (f.webkitRelativePath || f.name).replace(/\\/g, '/');
+        const shouldSkip = skipPrefixes.some(p => path.startsWith(p) || path.includes('/' + p));
+        if (!shouldSkip) {
+          form.append('files', f, f.webkitRelativePath || f.name);
+        }
+      });
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${base}/api/projects/upload`);
-      xhr.withCredentials = !local;
+      xhr.withCredentials = false;
       const supabaseKey = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] as string | undefined;
       if (!local && supabaseKey) {
         xhr.setRequestHeader('apikey', supabaseKey);

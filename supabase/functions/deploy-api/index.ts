@@ -2,24 +2,9 @@
 // Serves as the deployment backend for LABDITS, bridging uploads directly to Vercel Deployments API.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 function normalizePath(raw: string): string {
   let p = raw.replace(/\\/g, "/").replace(/^[A-Za-z]:\//, "");
-  // strip leading slashes
   p = p.replace(/^\/+/, "");
-  // prevent directory traversal
   const parts = p.split("/").filter((x) => x && x !== ".");
   if (parts.includes("..")) throw new Error(`Unsafe path: ${raw}`);
   return parts.join("/");
@@ -35,11 +20,27 @@ function shouldSkip(path: string): boolean {
     ".cache/",
     ".vercel/",
     "test-results/",
+    "artifacts/",
   ];
   return skipPrefixes.some((prefix) => path.startsWith(prefix) || path.includes("/" + prefix));
 }
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("origin") || "*";
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Credentials": "true",
+  };
+
+  function json(data: unknown, status = 200) {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
