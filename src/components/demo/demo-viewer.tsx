@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/layout/site-layout";
 import { useMarketplace } from "@/hooks/use-marketplace";
 import { chartData, money } from "@/data/products";
-import { isDeploymentLive, type Product } from "@/types";
+import type { Product } from "@/types";
+import { resolvePublicDemo, shouldShowBundledDemo } from '@/lib/public-demo';
 import { currentStatus, statusLabel } from "@/components/admin/project-uploader";
 const VIEWPORTS: Record<string, string> = {
   Desktop: "1440px",
@@ -48,12 +49,10 @@ export function DemoViewer({ slug }: { slug: string }) {
       </div>
     );
   const dep = p.project?.deployment;
-  const live = isDeploymentLive(dep);
-  const externalUrl = p.demoUrl && /^https:\/\//.test(p.demoUrl) ? p.demoUrl : undefined;
-  const hasProjectSource = Boolean(p.project || (p.files?.length && !externalUrl));
-  const ownerNeedsDeployment = session?.role === "owner" && !hasProjectSource && !externalUrl;
-  const url = p.project ? (live ? dep?.previewUrl : undefined) : externalUrl;
-  const blocked = external || (live && dep.embeddable === false);
+  const url = resolvePublicDemo(p);
+  const bundled = shouldShowBundledDemo(p);
+  const hasProjectSource = Boolean(p.project || p.files?.length);
+  const blocked = external || (url === dep?.previewUrl && dep.embeddable === false);
   const width = VIEWPORTS[device] ?? "100%";
   return (
     <div className="demo-page">
@@ -153,7 +152,7 @@ export function DemoViewer({ slug }: { slug: string }) {
           <span>
             {url ? (
               <>
-                {p.project ? "Deployed preview" : "External embedded preview"} ·{" "}
+                {url === dep?.previewUrl ? "Deployed preview" : "External embedded preview"} ·{" "}
                 <a
                   className="font-mono text-primary underline"
                   href={url}
@@ -165,8 +164,8 @@ export function DemoViewer({ slug }: { slug: string }) {
               </>
             ) : (
               <>
-                Preview: <strong>Bundled interactive demo</strong>
-                {(hasProjectSource || ownerNeedsDeployment) && (
+                Preview: <strong>{bundled ? "Bundled interactive demo" : "Public demo not ready"}</strong>
+                {hasProjectSource && (
                   <>
                     {" "}
                     · Uploaded build: {p.project ? statusLabel[currentStatus(p.project)] : "not connected"}
@@ -200,7 +199,7 @@ export function DemoViewer({ slug }: { slug: string }) {
           className={`demo-frame ${device === "Mobile" ? "demo-mobile" : ""}`}
           style={{ width, maxWidth: "100%" }}
         >
-          {url && (hasProjectSource || p.demoMode !== "mock") ? (
+          {url ? (
             <iframe
               key={refresh}
               src={url}
@@ -210,8 +209,13 @@ export function DemoViewer({ slug }: { slug: string }) {
               allowFullScreen
               referrerPolicy="no-referrer"
             />
-          ) : (
+          ) : bundled ? (
             <MockApplication key={`${p.id}-${refresh}`} product={p} />
+          ) : (
+            <div className="mock-app" role="status">
+              <h2>Public demo not ready</h2>
+              <p>Upload saja belum meng-host website. Sambungkan URL demo HTTPS publik atau tunggu deployment terverifikasi sebelum dipublikasikan.</p>
+            </div>
           )}
         </div>
       </div>

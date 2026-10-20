@@ -297,11 +297,16 @@ export function ProductWizard({ id }: { id?: string }) {
         toast.error("Add a product name, slug, and description.");
         return;
       }
+      if (step === 1 && draft.project && !draft.project.uploadId) {
+        toast.error("Upload the project successfully before continuing to demo configuration.");
+        return;
+      }
       if (step === 3 && (!draft.price || !draft.commercialPrice || !draft.installationPrice)) {
         toast.error("Complete all required prices.");
         return;
       }
       setStep((current) => current + 1);
+      if (step === 1 && draft.project?.uploadId) toast.success("Upload complete. Configure your demo next.");
       return;
     }
 
@@ -738,14 +743,28 @@ export function ProductWizard({ id }: { id?: string }) {
             </div>
           ) : step === 2 ? (
             <div className="form-stack">
+              {draft.project?.uploadId && (
+                <div className="notice">
+                  <Info /> Upload tersimpan. Alamat katalog demo: <code>/{draft.slug}</code>.
+                  Upload saja belum membuat demo live: deploy project dan tunggu health check
+                  berhasil sebelum publish. Source tetap dilayani dari origin preview terpisah.
+                </div>
+              )}
               <div className="field">
-                <label htmlFor="demo-url">Demo URL</label>
+                <label htmlFor="demo-url">External HTTPS demo URL (optional)</label>
                 <input
                   id="demo-url"
                   type="url"
                   className="form-input"
                   value={draft.demoUrl || ""}
-                  onChange={(event) => update("demoUrl", event.target.value)}
+                  onChange={(event) => {
+                    const demoUrl = event.target.value;
+                    setDraft((current) => ({
+                      ...current,
+                      demoUrl,
+                      demoMode: demoUrl.trim() ? 'iframe' : current.demoMode,
+                    }));
+                  }}
                   placeholder="https://your-demo.example.com"
                 />
               </div>
