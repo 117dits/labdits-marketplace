@@ -10,6 +10,8 @@ export class DeploymentApiError extends Error { constructor(message: string, pub
 function apiBase(): string | null {
   const configured = import.meta.env['VITE_LABDITS_API_URL'] as string | undefined;
   if (configured) return configured.replace(/\/$/, '');
+  const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'] as string | undefined;
+  if (supabaseUrl) return `${supabaseUrl.replace(/\/$/, '')}/functions/v1/deploy-api`;
   return import.meta.env.DEV ? 'http://127.0.0.1:8787' : null;
 }
 export function isDeploymentBackendConnected() { return apiBase() !== null; }
@@ -17,8 +19,22 @@ export function isDeploymentBackendConnected() { return apiBase() !== null; }
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const base = apiBase(); if (!base) throw new BackendNotConnectedError();
   const local = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(base);
+  const supabaseKey = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] as string | undefined;
+  const authHeaders: Record<string, string> = (!local && supabaseKey) ? {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+  } : {};
   // Admin auth is expected via HttpOnly session cookie on the API origin; no secrets live in the frontend.
-  const res = await fetch(`${base}${path}`, { credentials: local ? 'omit' : 'include', ...init, headers: { Accept: 'application/json', ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...init.headers } });
+  const res = await fetch(`${base}${path}`, {
+    credentials: local ? 'omit' : 'include',
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...authHeaders,
+      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...init.headers,
+    },
+  });
   if (!res.ok) { let msg = `Request failed (${res.status})`; try { const j = await res.json(); if (j?.errorMessage || j?.message) msg = j.errorMessage || j.message; } catch { /* keep default */ } throw new DeploymentApiError(msg, res.status); }
   return res.json() as Promise<T>;
 }
@@ -51,7 +67,12 @@ export const deploymentService = {
       files.forEach(f => form.append('files', f, f.webkitRelativePath || f.name));
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${base}/api/projects/upload`);
-      xhr.withCredentials = !/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(base);
+      xhr.withCredentials = !local;
+      const supabaseKey = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] as string | undefined;
+      if (!local && supabaseKey) {
+        xhr.setRequestHeader('apikey', supabaseKey);
+        xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
+      }
       xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
       xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new DeploymentApiError('Invalid upload response', xhr.status)); } } else reject(new DeploymentApiError(`Upload failed (${xhr.status})`, xhr.status)); };
       xhr.onerror = () => reject(new DeploymentApiError('Network error during upload', 0));
