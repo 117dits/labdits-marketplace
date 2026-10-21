@@ -191,7 +191,18 @@ Deno.serve(async (req: Request) => {
       const vData = await vRes.json();
       if (!vRes.ok) {
         console.error("Vercel deployment failed:", vData);
-        return json({ errorMessage: vData.error?.message || "Vercel deployment rejected" }, vRes.status);
+        const errMsg = vData.error?.message || "Vercel deployment rejected";
+        await supabase.from("projects").upsert({
+          product_id: projectId,
+          data: {
+            ...projectData,
+            status: "failed",
+            stage: 0,
+            errorMessage: errMsg,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+        return json({ errorMessage: errMsg }, vRes.status);
       }
 
       const deploymentId = vData.id;
@@ -350,8 +361,10 @@ Deno.serve(async (req: Request) => {
           lines: [
             {
               timestamp: new Date().toISOString(),
-              level: "info",
-              message: "Files uploaded. Waiting for build deployment command.",
+              level: projectData.errorMessage ? "error" : "info",
+              message: projectData.errorMessage
+                ? `Deployment rejected: ${projectData.errorMessage}`
+                : "Files uploaded. Waiting for build deployment command.",
             },
           ],
         });

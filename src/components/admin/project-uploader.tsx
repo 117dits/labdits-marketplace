@@ -324,9 +324,11 @@ export function ProjectUploader({
       set({ deployment: await deploymentService.deploy(value.projectId, c) });
       toast.success("Deployment requested");
     } catch (e) {
+      const msg = e instanceof Error ? e.message : "Deploy failed";
+      toast.error(`Deploy error: ${msg}`);
       set({
         localStatus: e instanceof BackendNotConnectedError ? "backend_required" : "failed",
-        localMessage: e instanceof Error ? e.message : "Deploy failed",
+        localMessage: msg,
       });
     } finally {
       setBusy(false);
@@ -504,9 +506,12 @@ export function ProjectUploader({
             </div>
           )}
           {value.localMessage && (
-            <div className="notice">
-              <Info />
-              {value.localMessage}
+            <div className={`notice ${value.localStatus === "failed" ? "border-destructive text-destructive" : ""}`}>
+              <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+              <div className="flex-1 text-xs">
+                <strong>{value.localStatus === "failed" ? "Deployment Error:" : "Notice:"}</strong>{" "}
+                {value.localMessage}
+              </div>
             </div>
           )}
           <div className="flex flex-wrap gap-2">
