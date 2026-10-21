@@ -219,6 +219,20 @@ Deno.serve(async (req: Request) => {
       const initialStatus = vData.readyState === "READY" ? "ready" : "building";
       const previewUrl = vData.url ? `https://${vData.url}` : null;
 
+      // Ensure public demo access by turning off Vercel Authentication (SSO / Deployment Protection)
+      try {
+        await fetch(vercelUrl(`/v9/projects/${projName}`), {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${vercelToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ssoProtection: null }),
+        });
+      } catch (err) {
+        console.error("Failed to disable Vercel deployment protection:", err);
+      }
+
       await supabase.from("projects").upsert({
         product_id: projectId,
         data: {
