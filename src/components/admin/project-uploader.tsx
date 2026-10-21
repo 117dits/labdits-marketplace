@@ -57,7 +57,13 @@ export const statusLabel: Record<DeploymentStatus, string> = {
   backend_required: "Backend Integration Required",
 };
 export const statusClass = (s: DeploymentStatus) =>
-  s === "ready" ? "status-positive" : s === "failed" ? "text-destructive" : "status-pending";
+  s === "ready"
+    ? "status-positive"
+    : s === "failed"
+      ? "text-destructive"
+      : s === "configuration_required" || s === "backend_required"
+        ? "border-amber-500/40 text-amber-500 bg-amber-500/10"
+        : "status-pending";
 
 export function SupportedProjectStacks({ compact = false }: { compact?: boolean }) {
   return (
@@ -108,11 +114,10 @@ export function DeploymentPipeline({ project }: { project?: ProjectRecord | unde
       {DEPLOYMENT_STAGES.map((s, i) => {
         const done = i < reached,
           active = i === reached && status !== "ready";
-        const failed =
+        const failed = active && status === "failed";
+        const warning =
           active &&
-          (status === "failed" ||
-            status === "configuration_required" ||
-            status === "backend_required");
+          (status === "configuration_required" || status === "backend_required");
         return (
           <li
             key={s}
@@ -122,6 +127,8 @@ export function DeploymentPipeline({ project }: { project?: ProjectRecord | unde
               <CheckCircle2 className="h-4 w-4 text-success" />
             ) : failed ? (
               <AlertTriangle className="h-4 w-4 text-destructive" />
+            ) : warning ? (
+              <Info className="h-4 w-4 text-amber-500" />
             ) : (
               <span className="grid h-4 w-4 place-items-center font-mono text-[9px]">{i + 1}</span>
             )}

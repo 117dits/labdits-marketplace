@@ -438,7 +438,7 @@ export async function analyzeProject(
 
   if (
     compatibility === "supported" &&
-    (buildCommand === null || outputDirectory === null || envRequired)
+    (buildCommand === null || (outputDirectory === null && framework !== "Next.js") || envRequired)
   )
     compatibility = "configuration_required";
   if (needsServerRuntime && /backend/.test(framework)) compatibility = "configuration_required";
