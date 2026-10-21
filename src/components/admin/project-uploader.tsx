@@ -318,8 +318,18 @@ export function ProjectUploader({
   }
 
   async function deploy() {
-    if (!value?.projectId || !value.buildConfig) return;
-    const { config, error } = prepareDeploymentConfig(value.analysis, value.buildConfig);
+    if (!value?.projectId) {
+      toast.error("Project ID not found. Upload files first.");
+      return;
+    }
+    const currentConfig: BuildConfig = value.buildConfig || {
+      installCommand: value.analysis?.installCommand || "npm install",
+      buildCommand: value.analysis?.buildCommand || "npm run build",
+      outputDirectory: value.analysis?.framework === "Next.js" ? "" : (value.analysis?.outputDirectory || ""),
+      nodeVersion: "20",
+      envNotes: "",
+    };
+    const { config, error } = prepareDeploymentConfig(value.analysis, currentConfig);
     if (error) {
       toast.error(error);
       return;
