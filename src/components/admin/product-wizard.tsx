@@ -96,7 +96,7 @@ async function droppedFiles(dataTransfer: DataTransfer) {
   const entries = Array.from(dataTransfer.items)
     .map((item) =>
       (
-        item as DataTransferItem & { webkitGetAsEntry?: () => FileEntry | null }
+        item as unknown as { webkitGetAsEntry?: () => FileEntry | null }
       ).webkitGetAsEntry?.(),
     )
     .filter((entry): entry is FileEntry => Boolean(entry));
@@ -120,13 +120,13 @@ export function ProductWizard({ id }: { id?: string }) {
   const [draft, setDraft] = useState<Product>(
     () =>
       existing || {
-        ...seedProducts[0],
+        ...(seedProducts[0] ?? { image: "", theme: "mint", version: "1.0.0", updated: "" }),
         id: "",
         slug: "",
         name: "",
         subtitle: "",
         description: "",
-        category: categories[0],
+        category: categories[0] ?? "Custom Applications",
         features: [],
         stack: ["React", "TypeScript", "Tailwind CSS"],
         price: 899000,
@@ -195,7 +195,7 @@ export function ProductWizard({ id }: { id?: string }) {
 
   async function selectFiles(selected: SelectedFile[], source: "zip" | "folder" | "drop") {
     if (!selected.length) return;
-    const isZip = selected.length === 1 && selected[0].file.name.toLowerCase().endsWith(".zip");
+    const isZip = selected.length === 1 && Boolean(selected[0]?.file.name.toLowerCase().endsWith(".zip"));
     const isFolder =
       source === "folder" ||
       selected.some(({ file }) => Boolean(file.webkitRelativePath)) ||
@@ -209,8 +209,8 @@ export function ProductWizard({ id }: { id?: string }) {
     const validation = await mockService.validateProjectFiles(selected.map(({ file }) => file));
     const nextFiles = validation.map((result, index) => ({
       ...result,
-      name: selected[index].path,
-      size: selected[index].file.size,
+      name: selected[index]?.path ?? result.name,
+      size: selected[index]?.file.size ?? 0,
     }));
     setFiles(nextFiles);
     update(
@@ -297,11 +297,16 @@ export function ProductWizard({ id }: { id?: string }) {
         toast.error("Add a product name, slug, and description.");
         return;
       }
+      if (step === 1 && draft.project && !draft.project.uploadId) {
+        toast.error("Upload the project successfully before continuing to demo configuration.");
+        return;
+      }
       if (step === 3 && (!draft.price || !draft.commercialPrice || !draft.installationPrice)) {
         toast.error("Complete all required prices.");
         return;
       }
       setStep((current) => current + 1);
+      if (step === 1 && draft.project?.uploadId) toast.success("Upload complete. Configure your demo next.");
       return;
     }
 
@@ -538,7 +543,7 @@ export function ProductWizard({ id }: { id?: string }) {
                       setProjectDragging(false);
                   }}
                   onDrop={handleProjectDrop}
-                  animate={reducedMotion || !projectDragging ? undefined : { scale: 1.008 }}
+                  animate={reducedMotion || !projectDragging ? { scale: 1 } : { scale: 1.008 }}
                 >
                   <div className="upload-icon-wrap">
                     {isUploading ? <LoaderCircle className="upload-spinner" /> : <Upload />}
@@ -738,14 +743,28 @@ export function ProductWizard({ id }: { id?: string }) {
             </div>
           ) : step === 2 ? (
             <div className="form-stack">
+              {draft.project?.uploadId && (
+                <div className="notice">
+                  <Info /> Upload tersimpan. Alamat katalog demo: <code>/{draft.slug}</code>.
+                  Upload saja belum membuat demo live: deploy project dan tunggu health check
+                  berhasil sebelum publish. Source tetap dilayani dari origin preview terpisah.
+                </div>
+              )}
               <div className="field">
-                <label htmlFor="demo-url">Demo URL</label>
+                <label htmlFor="demo-url">External HTTPS demo URL (optional)</label>
                 <input
                   id="demo-url"
                   type="url"
                   className="form-input"
                   value={draft.demoUrl || ""}
-                  onChange={(event) => update("demoUrl", event.target.value)}
+                  onChange={(event) => {
+                    const demoUrl = event.target.value;
+                    setDraft((current) => ({
+                      ...current,
+                      demoUrl,
+                      demoMode: demoUrl.trim() ? 'iframe' : current.demoMode,
+                    }));
+                  }}
                   placeholder="https://your-demo.example.com"
                 />
               </div>
