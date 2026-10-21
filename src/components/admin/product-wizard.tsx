@@ -96,7 +96,7 @@ async function droppedFiles(dataTransfer: DataTransfer) {
   const entries = Array.from(dataTransfer.items)
     .map((item) =>
       (
-        item as DataTransferItem & { webkitGetAsEntry?: () => FileEntry | null }
+        item as unknown as { webkitGetAsEntry?: () => FileEntry | null }
       ).webkitGetAsEntry?.(),
     )
     .filter((entry): entry is FileEntry => Boolean(entry));
@@ -120,13 +120,13 @@ export function ProductWizard({ id }: { id?: string }) {
   const [draft, setDraft] = useState<Product>(
     () =>
       existing || {
-        ...seedProducts[0],
+        ...(seedProducts[0] ?? { image: "", theme: "mint", version: "1.0.0", updated: "" }),
         id: "",
         slug: "",
         name: "",
         subtitle: "",
         description: "",
-        category: categories[0],
+        category: categories[0] ?? "Custom Applications",
         features: [],
         stack: ["React", "TypeScript", "Tailwind CSS"],
         price: 899000,
@@ -195,7 +195,7 @@ export function ProductWizard({ id }: { id?: string }) {
 
   async function selectFiles(selected: SelectedFile[], source: "zip" | "folder" | "drop") {
     if (!selected.length) return;
-    const isZip = selected.length === 1 && selected[0].file.name.toLowerCase().endsWith(".zip");
+    const isZip = selected.length === 1 && Boolean(selected[0]?.file.name.toLowerCase().endsWith(".zip"));
     const isFolder =
       source === "folder" ||
       selected.some(({ file }) => Boolean(file.webkitRelativePath)) ||
@@ -209,8 +209,8 @@ export function ProductWizard({ id }: { id?: string }) {
     const validation = await mockService.validateProjectFiles(selected.map(({ file }) => file));
     const nextFiles = validation.map((result, index) => ({
       ...result,
-      name: selected[index].path,
-      size: selected[index].file.size,
+      name: selected[index]?.path ?? result.name,
+      size: selected[index]?.file.size ?? 0,
     }));
     setFiles(nextFiles);
     update(
@@ -543,7 +543,7 @@ export function ProductWizard({ id }: { id?: string }) {
                       setProjectDragging(false);
                   }}
                   onDrop={handleProjectDrop}
-                  animate={reducedMotion || !projectDragging ? undefined : { scale: 1.008 }}
+                  animate={reducedMotion || !projectDragging ? { scale: 1 } : { scale: 1.008 }}
                 >
                   <div className="upload-icon-wrap">
                     {isUploading ? <LoaderCircle className="upload-spinner" /> : <Upload />}

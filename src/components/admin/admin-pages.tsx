@@ -115,7 +115,7 @@ export function Metrics() {
           key={label}
           variants={{ hidden: { opacity: 0, y: reduced ? 0 : 14 }, show: { opacity: 1, y: 0 } }}
           transition={{ duration: 0.35 }}
-          whileHover={reduced ? undefined : { y: -3 }}
+          whileHover={reduced ? {} : { y: -3 }}
         >
           <div className="metric-label">
             {label}
@@ -233,7 +233,7 @@ export function AdminOverview() {
         transition={{ duration: 0.45, delay: 0.12 }}
       >
         <RevenueChart />
-        <motion.div className="panel" whileHover={reduced ? undefined : { y: -3 }}>
+        <motion.div className="panel" whileHover={reduced ? {} : { y: -3 }}>
           <h2>Top selling products</h2>
           {products
             .slice()
@@ -915,7 +915,7 @@ export function AdminSettings() {
               ["storeName", "Store name"],
               ["tagline", "Tagline"],
               ["email", "Support email"],
-            ].map(([name, label]) => (
+            ].map(([name = "", label]) => (
               <div className="field" key={name}>
                 <label htmlFor={name}>{label}</label>
                 <input
@@ -960,7 +960,7 @@ export function AdminSettings() {
               <select
                 className="form-input"
                 name="provider"
-                defaultValue={store.settings.provider || "Not configured"}
+                defaultValue={store.settings['provider'] || "Not configured"}
               >
                 <option>Not configured</option>
                 <option>Midtrans — future integration</option>
@@ -978,7 +978,7 @@ export function AdminSettings() {
               <input
                 type="checkbox"
                 name="notifications"
-                defaultChecked={store.settings.notifications !== "off"}
+                defaultChecked={store.settings['notifications'] !== "off"}
               />
               Order notification preference (demo)
             </label>
@@ -991,7 +991,7 @@ export function AdminSettings() {
               <select
                 className="form-input"
                 name="timezone"
-                defaultValue={store.settings.timezone || "Asia/Jakarta"}
+                defaultValue={store.settings['timezone'] || "Asia/Jakarta"}
               >
                 <option>Asia/Jakarta</option>
                 <option>Asia/Makassar</option>
