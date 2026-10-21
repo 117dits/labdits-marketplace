@@ -48,6 +48,16 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const path = url.pathname;
   const vercelToken = Deno.env.get("VERCEL_TOKEN");
+  const vercelTeamId = Deno.env.get("VERCEL_TEAM_ID");
+
+  function vercelUrl(endpoint: string, queryParams: Record<string, string> = {}) {
+    const u = new URL(`https://api.vercel.com${endpoint}`);
+    if (vercelTeamId) u.searchParams.set("teamId", vercelTeamId);
+    for (const [k, v] of Object.entries(queryParams)) {
+      u.searchParams.set(k, v);
+    }
+    return u.toString();
+  }
 
   if (!vercelToken) {
     return json({ errorMessage: "VERCEL_TOKEN secret is not set in Supabase Edge Functions." }, 500);
@@ -78,7 +88,7 @@ Deno.serve(async (req: Request) => {
           .join("");
 
         // Upload to Vercel File Store
-        const uploadRes = await fetch("https://api.vercel.com/v2/files", {
+        const uploadRes = await fetch(vercelUrl("/v2/files"), {
           method: "POST",
           headers: {
             Authorization: `Bearer ${vercelToken}`,
@@ -171,7 +181,7 @@ Deno.serve(async (req: Request) => {
       const projName = `labdits-${projectId.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 30)}`;
 
       // Create deployment on Vercel
-      const vRes = await fetch("https://api.vercel.com/v13/deployments", {
+      const vRes = await fetch(vercelUrl("/v13/deployments"), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${vercelToken}`,
@@ -269,7 +279,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Check status from Vercel
-      const vRes = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}`, {
+      const vRes = await fetch(vercelUrl(`/v13/deployments/${deploymentId}`), {
         headers: { Authorization: `Bearer ${vercelToken}` },
       });
       const vData = await vRes.json();
@@ -373,7 +383,7 @@ Deno.serve(async (req: Request) => {
       // Fetch actual build events from Vercel
       try {
         const vRes = await fetch(
-          `https://api.vercel.com/v3/deployments/${deploymentId}/events?limit=50&direction=forward`,
+          vercelUrl(`/v3/deployments/${deploymentId}/events`, { limit: "50", direction: "forward" }),
           { headers: { Authorization: `Bearer ${vercelToken}` } }
         );
         if (vRes.ok) {
