@@ -335,13 +335,56 @@ Deno.serve(async (req: Request) => {
     const logsMatch = path.match(/\/api\/projects\/([^/]+)\/logs$/);
     if (logsMatch && req.method === "GET") {
       const projectId = decodeURIComponent(logsMatch[1]);
+      const { data: row } = await supabase
+        .from("projects")
+        .select("data")
+        .eq("product_id", projectId)
+        .maybeSingle();
+
+      const projectData = row?.data || {};
+      const deploymentId = projectData.deploymentId;
+
+      if (!deploymentId) {
+        return json({
+          projectId,
+          lines: [
+            {
+              timestamp: new Date().toISOString(),
+              level: "info",
+              message: "Files uploaded. Waiting for build deployment command.",
+            },
+          ],
+        });
+      }
+
+      // Fetch actual build events from Vercel
+      try {
+        const vRes = await fetch(
+          `https://api.vercel.com/v3/deployments/${deploymentId}/events?limit=50&direction=forward`,
+          { headers: { Authorization: `Bearer ${vercelToken}` } }
+        );
+        if (vRes.ok) {
+          const events = await vRes.json();
+          const lines = Array.isArray(events)
+            ? events.map((ev: { createdAt?: number; date?: number; type?: string; text?: string; payload?: { text?: string } }) => ({
+                timestamp: new Date(ev.createdAt || ev.date || Date.now()).toISOString(),
+                level: ev.type === "error" || ev.type === "stderr" ? "error" : "info",
+                message: ev.text || ev.payload?.text || JSON.stringify(ev),
+              }))
+            : [];
+          return json({ projectId, lines: lines.length ? lines : [{ timestamp: new Date().toISOString(), level: "info", message: "Build initialized on Vercel..." }] });
+        }
+      } catch (e) {
+        console.error("Vercel logs fetch error:", e);
+      }
+
       return json({
         projectId,
         lines: [
           {
             timestamp: new Date().toISOString(),
             level: "info",
-            message: "Project uploaded and deployed via Vercel API.",
+            message: `Building on Vercel (Deployment ID: ${deploymentId})...`,
           },
         ],
       });

@@ -11,6 +11,7 @@ import {
   Folder,
   FileText,
   Rocket,
+  ScrollText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -194,7 +195,9 @@ export function ProjectUploader({
   const abort = useRef<AbortController | null>(null);
   const [problems, setProblems] = useState<string[]>([]),
     [progress, setProgress] = useState(0),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [logs, setLogs] = useState<{ timestamp: string; level: string; message: string }[] | null>(null),
+    [loadingLogs, setLoadingLogs] = useState(false);
   const connected = isDeploymentBackendConnected();
   const latest = useRef(value);
   latest.current = value;
@@ -531,19 +534,41 @@ export function ProjectUploader({
               <Button
                 type="button"
                 variant="outline"
+                disabled={loadingLogs}
                 onClick={async () => {
+                  setLoadingLogs(true);
                   try {
-                    set({ deployment: await deploymentService.getDeployment(value.projectId!) });
+                    const res = await deploymentService.getLogs(value.projectId!);
+                    setLogs(res.lines);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Refresh failed");
+                    toast.error(e instanceof Error ? e.message : "Failed loading logs");
+                  } finally {
+                    setLoadingLogs(false);
                   }
                 }}
               >
-                <RotateCw />
-                Refresh status
+                <ScrollText />
+                {loadingLogs ? "Loading logs..." : "View build logs"}
               </Button>
             )}
           </div>
+          {logs && (
+            <div className="panel mt-4 p-4 border rounded-md bg-muted/30">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b">
+                <span className="font-medium text-xs flex items-center gap-2">
+                  <ScrollText className="h-4 w-4" /> Live Build Logs
+                </span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setLogs(null)}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <pre className="max-h-60 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed select-text">
+                {logs.length
+                  ? logs.map((l) => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.level.toUpperCase()}: ${l.message}`).join("\n")
+                  : "No log lines available yet."}
+              </pre>
+            </div>
+          )}
           <DeploymentPipeline project={value} />
           {value.deployment?.errorMessage && (
             <div className="notice text-destructive">
