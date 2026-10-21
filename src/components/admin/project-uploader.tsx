@@ -22,6 +22,7 @@ import {
   readZipEntries,
   type InspectableEntry,
 } from "@/lib/project-analyzer";
+import { prepareDeploymentConfig } from "@/lib/deployment-config";
 import {
   BackendNotConnectedError,
   deploymentService,
@@ -311,17 +312,16 @@ export function ProjectUploader({
 
   async function deploy() {
     if (!value?.projectId || !value.buildConfig) return;
-    const c = value.buildConfig;
-    if (
-      value.analysis?.framework !== "Static HTML" &&
-      (!c.buildCommand.trim() || !c.outputDirectory.trim())
-    ) {
-      toast.error("Set a build command and output directory first.");
+    const { config, error } = prepareDeploymentConfig(value.analysis, value.buildConfig);
+    if (error) {
+      toast.error(error);
       return;
     }
     setBusy(true);
     try {
-      set({ deployment: await deploymentService.deploy(value.projectId, c) });
+      set({ buildConfig: config, localMessage: undefined, localStatus: "building" });
+      set({ deployment: await deploymentService.deploy(value.projectId, config) });
+      set({ localStatus: "building", localMessage: undefined });
       toast.success("Deployment requested");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Deploy failed";
