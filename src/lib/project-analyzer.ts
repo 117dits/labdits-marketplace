@@ -372,6 +372,14 @@ export async function analyzeProject(
     outputDirectory = ".";
     compatibility = "supported";
     confidence = "high";
+  } else if (pkg && atRoot("index.html") && !scripts["build"]) {
+    // A project with index.html at root and no build script is a Static site
+    // (e.g. static landing pages, HTML/JS/CSS prototypes, or repos with dev scripts only).
+    framework = "Static HTML";
+    outputDirectory = ".";
+    compatibility = "supported";
+    confidence = "high";
+    notes.push("Detected root index.html with no build step; deploying as static site.");
   } else if (pkg) {
     framework = "Node.js project (unrecognized)";
     notes.push("Framework not recognized. Configure the build manually.");

@@ -14,8 +14,14 @@ describe('deployment config', () => {
       config: { ...config, outputDirectory: '' }, error: null,
     });
   });
-  it('does not bypass missing build settings for unrecognized frameworks', () => {
-    expect(prepareDeploymentConfig({ ...analysis, framework: 'Unknown', outputDirectory: null, buildCommand: null }, { ...config, buildCommand: '' }).error)
+  it('allows static sites with index.html even when unrecognized', () => {
+    expect(prepareDeploymentConfig({ ...analysis, framework: 'Node.js project (unrecognized)', keyFiles: ['package.json', 'index.html'], outputDirectory: null, buildCommand: null }, { ...config, buildCommand: '', outputDirectory: '' })).toEqual({
+      config: { ...config, buildCommand: '', outputDirectory: '.' },
+      error: null,
+    });
+  });
+  it('does not bypass missing build settings for unrecognized frameworks without index.html', () => {
+    expect(prepareDeploymentConfig({ ...analysis, framework: 'Unknown', keyFiles: ['package.json'], outputDirectory: null, buildCommand: null }, { ...config, buildCommand: '' }).error)
       .toMatch(/build command/i);
   });
 });
