@@ -440,8 +440,8 @@
   }
   .product-card:hover {
     border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
-    transform: translateY(-4px);
-    box-shadow: var(--card-shadow);
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: 0 20px 40px -15px color-mix(in oklab, var(--primary) 25%, transparent);
   }
   .product-preview {
     position: relative;
@@ -573,10 +573,11 @@
     flex-direction: column;
     align-items: flex-start;
     min-height: 150px;
-    transition: background 0.2s;
+    transition: background 0.25s, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s;
   }
   .category-tile:hover {
-    background: var(--card);
+    background: color-mix(in oklab, var(--primary) 8%, var(--card));
+    transform: translateY(-2px);
   }
   .category-tile svg {
     width: 22px;
@@ -825,6 +826,10 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 25px;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s;
+  }
+  .panel:hover {
+    border-color: color-mix(in oklab, var(--primary) 30%, var(--border));
   }
   .panel h2 {
     font-size: 17px;
@@ -1645,6 +1650,16 @@
     flex-wrap: wrap;
     gap: 12px;
     margin-top: 25px;
+  }
+  .btn-hover-lift {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .btn-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -6px color-mix(in oklab, var(--primary) 35%, transparent);
+  }
+  .btn-hover-lift:active {
+    transform: translateY(0);
   }
 }
 @keyframes pulse {

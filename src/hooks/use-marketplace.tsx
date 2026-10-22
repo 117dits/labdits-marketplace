@@ -21,7 +21,7 @@ export function MarketplaceProvider({children}:{children:ReactNode}) {
        const [products,settings,{data:{user}}]=await Promise.all([catalog.products(),catalog.settings(),supabase.auth.getUser()]);
        const {data:roles}=user ? await supabase.from('user_roles').select('role').eq('user_id',user.id) : {data:null};
        if(active) setState(s=>({...s,products,settings,session:user?{name:user.user_metadata?.['name'] || user.email || 'User',email:user.email || '',role:roles?.some(r=>r.role==='admin')?'owner':'customer'}:null}));
-     } catch { if(active) toast.error('Catalog unavailable; showing seed preview. Changes are disabled.'); }
+     } catch { if(active) toast.error('Katalog tidak dapat diakses; menampilkan mode offline.'); }
      if(active) setHydrated(true);
    };
    void load();
@@ -30,7 +30,15 @@ export function MarketplaceProvider({children}:{children:ReactNode}) {
  },[]);
  useEffect(()=>{if(hydrated && !catalog) mockService.write(state);},[state,hydrated]);
  const updateCart=(cart:CartItem[])=>setState(s=>({...s,cart}));
- const addToCart=(productId:string,license:License='personal')=>{setState(s=>({...s,cart:s.cart.some(i=>i.productId===productId&&i.license===license)?s.cart:[...s.cart,{productId,license,quantity:1}]}));toast.success('Added to your cart');};
+  const addToCart = (productId: string, license: License = 'personal') => {
+    setState((s) => ({
+      ...s,
+      cart: s.cart.some((i) => i.productId === productId && i.license === license)
+        ? s.cart
+        : [...s.cart, { productId, license, quantity: 1 }],
+    }));
+    toast.success('Produk berhasil ditambahkan ke keranjang');
+  };
  const saveProduct=(p:Product)=>{if(catalog){void catalog.saveProduct(p).then(()=>setState(s=>({...s,products:s.products.some(x=>x.id===p.id)?s.products.map(x=>x.id===p.id?p:x):[p,...s.products]}))).catch(e=>toast.error(`Product not saved: ${e.message}`));return;}setState(s=>({...s,products:s.products.some(x=>x.id===p.id)?s.products.map(x=>x.id===p.id?p:x):[p,...s.products]}));};
  const deleteProduct=(id:string)=>{if(catalog){void catalog.deleteProduct(id).then(()=>setState(s=>({...s,products:s.products.filter(p=>p.id!==id),cart:s.cart.filter(i=>i.productId!==id)}))).catch(e=>toast.error(`Product not deleted: ${e.message}`));return;}setState(s=>({...s,products:s.products.filter(p=>p.id!==id),cart:s.cart.filter(i=>i.productId!==id)}));};
  const saveSettings=(settings:Record<string,string>)=>{if(catalog){void catalog.saveSettings(settings).then(()=>setState(s=>({...s,settings}))).catch(e=>toast.error(`Settings not saved: ${e.message}`));return;}setState(s=>({...s,settings}));};

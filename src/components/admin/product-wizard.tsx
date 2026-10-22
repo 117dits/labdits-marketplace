@@ -525,6 +525,16 @@ export function ProductWizard({ id }: { id?: string }) {
                 productId={draft.id || draft.slug || "new"}
                 value={draft.project}
                 onChange={updateProject}
+                onAutoExtracted={(extracted) => {
+                  setDraft((curr) => ({
+                    ...curr,
+                    name: curr.name || extracted.title || curr.name,
+                    slug: curr.slug || (extracted.title ? extracted.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") : curr.slug),
+                    description: curr.description || extracted.description || curr.description,
+                    subtitle: curr.subtitle || extracted.description?.slice(0, 50) || curr.subtitle,
+                    image: extracted.thumbnail || curr.image,
+                  }));
+                }}
               />
               <div className="hidden" aria-hidden="true">
                 <div className="notice">

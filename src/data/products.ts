@@ -7,7 +7,7 @@ import wedding from '@/assets/sakinah.svg';
 import type { Product, Order, Customer } from '@/types';
 export const categories = ['Admin Dashboards', 'Business Websites', 'POS Systems', 'SaaS Applications', 'E-Commerce', 'Landing Pages', 'Custom Applications'];
 export const money = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
-export const licenseNames = { personal: 'Personal License', commercial: 'Commercial License', installation: 'Installation + Customization' };
+export const licenseNames = { personal: 'Lisensi Personal', commercial: 'Lisensi Komersial', installation: 'Lisensi Lengkap + Instalasi & Kustomisasi' };
 export const priceFor = (p: Product, license: string) => license === 'commercial' ? p.commercialPrice : license === 'installation' ? p.installationPrice : p.price;
 const product = (id: string, name: string, subtitle: string, category: string, price: number, image: string, theme: string, features: string[], stack = ['React', 'TypeScript', 'Tailwind CSS']): Product => ({ id, slug: name.toLowerCase(), name, subtitle, category, price, image, theme, features, stack, description: `${subtitle}, thoughtfully crafted for ambitious businesses. ${name} brings together an intuitive experience, beautiful interfaces, and a clean, extensible codebase. Make it your own and launch with confidence.`, commercialPrice: price * 2, installationPrice: price * 3, featured: true, status: 'published', popularity: 100 - Number(id) * 9, version: '2.1.0', updated: '2026-10-08', devices: ['Desktop', 'Tablet', 'Mobile'], freeDemo: true });
 export const seedProducts: Product[] = [

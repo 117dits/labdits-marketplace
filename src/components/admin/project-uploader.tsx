@@ -192,10 +192,12 @@ export function ProjectUploader({
   productId,
   value,
   onChange,
+  onAutoExtracted,
 }: {
   productId: string;
   value?: ProjectRecord | undefined;
   onChange: (p: ProjectRecord | undefined) => void;
+  onAutoExtracted?: (info: { title?: string; description?: string; thumbnail?: string }) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null),
     folderRef = useRef<HTMLInputElement>(null);
@@ -271,6 +273,23 @@ export function ProjectUploader({
       },
       localStatus: analysis.compatibility === "supported" ? "pending" : "configuration_required",
     });
+
+    if (onAutoExtracted) {
+      try {
+        const { extractProjectMetadata } = await import("@/lib/project-meta-extractor");
+        const extracted = await extractProjectMetadata(files);
+        if (extracted.title || extracted.description || extracted.thumbnailUrl) {
+          onAutoExtracted({
+            title: extracted.title,
+            description: extracted.description,
+            thumbnail: extracted.thumbnailUrl,
+          });
+          toast.success("Informasi & thumbnail project terdeteksi otomatis.");
+        }
+      } catch {
+        // non-blocking
+      }
+    }
   }
 
   async function upload() {

@@ -10,7 +10,141 @@ import { money, licenseNames } from '@/data/products';
 import { mockService } from '@/services/mock-service';
 import { catalogConfigured } from '@/services/catalog-service';
 import { supabase } from '@/integrations/supabase/client';
-function SupabaseLogin(){const navigate=useNavigate();const [busy,setBusy]=useState(false);return <div className="site-container py-16"><form className="mx-auto max-w-md panel form-stack" onSubmit={async e=>{e.preventDefault();setBusy(true);const data=new FormData(e.currentTarget);const {data:authData,error}=await supabase.auth.signInWithPassword({email:String(data.get('email')),password:String(data.get('password'))});setBusy(false);if(error){toast.error(error.message);return;}toast.success('Signed in');let isAdmin=false;if(authData.user){const {data:roles}=await supabase.from('user_roles').select('role').eq('user_id',authData.user.id);isAdmin=Boolean(roles?.some(r=>r.role==='admin'));}void navigate({to:isAdmin?'/admin':'/account'});}}><h1 className="text-3xl">Sign in</h1><p>Owner access requires an admin role assigned in Supabase.</p><label htmlFor="auth-email">Email</label><input id="auth-email" name="email" type="email" autoComplete="email" className="form-input" required/><label htmlFor="auth-password">Password</label><input id="auth-password" name="password" type="password" autoComplete="current-password" className="form-input" required/><Button type="submit" disabled={busy}>{busy?'Signing in…':'Sign in'}</Button></form></div>}
+function SupabaseLogin(){
+  const navigate=useNavigate();
+  const [busy,setBusy]=useState(false);
+  const [mode,setMode]=useState<'login'|'register'>('login');
+  const [fullName,setFullName]=useState('');
+  const [email,setEmail]=useState('');
+  const [password,setPassword]=useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      if (mode === 'register') {
+        const { data: signUpData, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name: fullName || email.split('@')[0] }
+          }
+        });
+        if (error) throw error;
+        toast.success('Pendaftaran berhasil! Silakan masuk ke akun Anda.');
+        setMode('login');
+      } else {
+        const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        toast.success('Berhasil masuk.');
+        let isAdmin = false;
+        if (authData.user) {
+          const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', authData.user.id);
+          isAdmin = Boolean(roles?.some(r => r.role === 'admin'));
+        }
+        void navigate({ to: isAdmin ? '/admin' : '/account' });
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Terjadi kesalahan autentikasi');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="site-container py-16">
+      <div className="mx-auto max-w-md panel">
+        <div className="mb-6 flex items-center justify-between border-b border-border pb-4">
+          <div>
+            <h1 className="text-2xl font-bold">{mode === 'login' ? 'Masuk ke LABDITS' : 'Daftar Akun Baru'}</h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {mode === 'login' ? 'Akses produk, lisensi, dan unduhan Anda.' : 'Buat akun pelanggan untuk membeli template dan produk digital.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-6 flex rounded-lg bg-secondary/50 p-1">
+          <button
+            type="button"
+            className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-all ${mode === 'login' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setMode('login')}
+          >
+            Masuk
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-all ${mode === 'register' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setMode('register')}
+          >
+            Registrasi
+          </button>
+        </div>
+
+        <form className="form-stack" onSubmit={handleSubmit}>
+          {mode === 'register' && (
+            <div className="field">
+              <label htmlFor="auth-name">Nama Lengkap</label>
+              <input
+                id="auth-name"
+                name="name"
+                type="text"
+                autoComplete="name"
+                className="form-input"
+                placeholder="cth. Aditya Pratama"
+                required
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div className="field">
+            <label htmlFor="auth-email">Alamat Email</label>
+            <input
+              id="auth-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              className="form-input"
+              placeholder="nama@domain.com"
+              required
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="auth-password">Kata Sandi</label>
+            <input
+              id="auth-password"
+              name="password"
+              type="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              className="form-input"
+              placeholder="••••••••"
+              required
+              minLength={6}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+          </div>
+
+          <Button type="submit" disabled={busy} className="mt-2 w-full btn-hover-lift">
+            {busy ? (mode === 'login' ? 'Memproses masuk…' : 'Mendaftarkan…') : (mode === 'login' ? 'Masuk Sekarang' : 'Daftar Akun')}
+          </Button>
+
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            {mode === 'login' ? (
+              <>Belum punya akun? <button type="button" onClick={() => setMode('register')} className="text-primary hover:underline font-medium">Daftar sekarang</button></>
+            ) : (
+              <>Sudah memiliki akun? <button type="button" onClick={() => setMode('login')} className="text-primary hover:underline font-medium">Masuk di sini</button></>
+            )}
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
 export function Login(){return catalogConfigured()?<SupabaseLogin/>:<DemoLogin/>}
 function DemoLogin(){const store=useMarketplace();const [role,setRole]=useState<'customer'|'owner'>('customer');const navigate=useNavigate();return <div className="site-container py-16"><div className="mx-auto max-w-md panel"><div className="eyebrow mb-5">Welcome to your next chapter</div><h1 className="text-3xl font-medium">Your LABDITS space.</h1><p className="mt-4 text-sm leading-7 text-muted-foreground">Explore the account experience with a sample identity.</p><div className="chips mt-6">{(['customer','owner'] as const).map(r=><Button variant="ghost" className={`chip ${role===r?'chip-active':''}`} key={r} onClick={()=>setRole(r)}>{r==='customer'?'Customer demo':'Owner demo'}</Button>)}</div><form className="form-stack" onSubmit={e=>{e.preventDefault();const data=new FormData(e.currentTarget);store.setSession({name:String(data.get('name')),email:String(data.get('email')),role});toast.success('Demo workspace opened');navigate({to:role==='owner'?'/admin':'/account'});}}><div className="field"><label htmlFor="demo-name">Demo name</label><input id="demo-name" name="name" className="form-input" required defaultValue="Aditya Pratama"/></div><div className="field"><label htmlFor="demo-email">Demo email</label><input id="demo-email" name="email" type="email" className="form-input" required defaultValue="aditya@example.com"/></div><div className="notice"><ShieldCheck/>Mock sign-in only. No password, secure authentication or private account is provided. Use sample details.</div><Button type="submit">Enter {role} demo<ArrowUpRight/></Button></form></div></div>}
 export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downloads'|'settings'}){const store=useMarketplace();const own=store.orders.filter(o=>o.customer.email===store.session?.email);const paid=own.filter(o=>o.status!=='Pending');const items=paid.flatMap(o=>o.items.map(i=>({...i,orderId:o.id})));const [name,setName]=useState(store.session?.name||''),[email,setEmail]=useState(store.session?.email||'');const titles={overview:'Your next chapter.',orders:'Your order history.',downloads:'Ready for your next build.',settings:'Your account, your way.'};return <DashboardLayout title={view==='overview'?'Overview':view}><div className="app-heading"><div><div className="eyebrow mb-4">LABDITS / CUSTOMER SPACE</div><h1>{titles[view]}</h1><p>{view==='overview'?`Good to see you, ${store.session?.name||'builder'}.`:'Your products, licenses, and demo account in one place.'}</p></div><Button variant="outline" size="sm" asChild><Link to="/products">Explore<ArrowUpRight/></Link></Button></div>{view==='overview'&&<><div className="metric-grid">{[['Your products',items.length],['Demo orders',own.length],['Total demo purchases',money(paid.reduce((s,o)=>s+o.total,0))],['Support','Available']].map(([label,value])=><div className="panel metric" key={label}><span className="metric-label">{label}</span><strong>{value}</strong><small>Frontend sample account</small></div>)}</div><div className="panel mb-6"><h2>Recent orders</h2><OrdersTable orders={own.slice(0,3)}/></div></>}{view==='orders'&&<div className="panel"><h2>Order history</h2><OrdersTable orders={own}/></div>}{(view==='downloads'||view==='overview')&&<><div className="section-heading mt-8"><div><h2>Your collection.</h2></div>{view==='overview'&&<Button variant="link" asChild><Link to="/account/downloads">All downloads<ArrowUpRight/></Link></Button>}</div>{!items.length?<div className="empty-state"><Package/><h2>Your collection starts with an idea.</h2><p>Complete a demo checkout to see products and sample downloads here.</p><Button asChild><Link to="/products">Find your next project</Link></Button></div>:<div className="grid grid-cols-1 gap-5 lg:grid-cols-2">{items.map((item,index)=>{const p=store.products.find(p=>p.id===item.productId);return p?<div className="panel" key={index}><div className="table-product mb-5"><img src={p.image} alt={p.name}/><div><h3>{p.name}</h3><p>{p.subtitle}</p></div></div><div className="summary-row"><span>License</span><span>{licenseNames[item.license]}</span></div><div className="summary-row"><span>Reference</span><span className="font-mono text-[10px]">DEMO-{item.orderId}-{p.id}</span></div><div className="notice mb-4"><Info/>Sample download only. No real source code or valid license is included.</div><div className="flex flex-wrap gap-3"><Button size="sm" onClick={()=>{mockService.downloadExample(p.name);toast.success('Sample README downloaded')}}><Download/>Download sample</Button><Button size="sm" variant="outline" asChild><Link to="/support">Get support<Mail/></Link></Button></div></div>:null})}</div>}</>}{view==='settings'&&<form className="panel max-w-xl form-stack" onSubmit={e=>{e.preventDefault();if(store.session)store.setSession({...store.session,name,email});toast.success('Demo profile saved')}}><h2>Profile details</h2><div className="field"><label htmlFor="account-name">Name</label><input id="account-name" required className="form-input" value={name||store.session?.name||''} onChange={e=>setName(e.target.value)}/></div><div className="field"><label htmlFor="account-email">Email</label><input id="account-email" type="email" required className="form-input" value={email||store.session?.email||''} onChange={e=>setEmail(e.target.value)}/></div><div className="notice"><Info/>Demo profile only. Changing the email switches the mock order-history identity.</div><Button type="submit">Save profile</Button></form>}</DashboardLayout>}
