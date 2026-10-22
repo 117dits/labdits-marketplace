@@ -100,7 +100,7 @@ describe("project analyzer", () => {
     const file = new File([], "large.zip");
     Object.defineProperty(file, "size", { value: 2 * 1024 * 1024 * 1024 });
     expect(await mockService.validateProjectFiles([file])).toEqual([
-      { name: "large.zip", valid: true, reason: "Ready for simulated upload" },
+      { name: "large.zip", valid: true, reason: "Berkas valid dan siap diproses" },
     ]);
   });
   it("demo is live only with verified https preview", () => {

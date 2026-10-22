@@ -13,7 +13,7 @@ describe("mock project file validation", () => {
       {
         name: "large-project.zip",
         valid: true,
-        reason: "Ready for simulated upload",
+        reason: "Berkas valid dan siap diproses",
       },
     ]);
   });

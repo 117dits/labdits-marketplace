@@ -84,11 +84,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LABDITS — Digital Products & Interactive Web Experiences" },
-      { name: "description", content: "Premium websites, dashboards, and digital experiences. Built to Impress. Ready to Deploy." },
+      { title: "LABDITS — Marketplace Produk Digital & Live Demo Interaktif" },
+      { name: "description", content: "Koleksi website premium, dashboard admin, dan template aplikasi digital siap pakai di Indonesia. Dibuat Melampaui Batas Biasa." },
       { name: "author", content: "LABDITS" },
-      { property: "og:title", content: "LABDITS — Digital Products & Interactive Web Experiences" },
-      { property: "og:description", content: "Premium websites, dashboards, and digital experiences. Built to Impress. Ready to Deploy." },
+      { property: "og:title", content: "LABDITS — Marketplace Produk Digital & Live Demo Interaktif" },
+      { property: "og:description", content: "Koleksi website premium, dashboard admin, dan template aplikasi digital siap pakai di Indonesia. Dibuat Melampaui Batas Biasa." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       

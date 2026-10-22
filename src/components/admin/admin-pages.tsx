@@ -104,7 +104,7 @@ export function Metrics() {
           change: "+18.2% vs. last month",
         },
         {
-          label: "Customers",
+          label: "Total Pelanggan",
           value: new Set(orders.map((o) => o.customer.email)).size,
           icon: Users,
           change: "Growing your community",
@@ -151,10 +151,9 @@ export function RevenueChart({
     >
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <h2 className="mb-2">{analytics ? "Product engagement" : "Revenue overview"}</h2>
+          <h2 className="mb-2">{analytics ? "Aktivitas Pengunjung & Produk" : "Grafik Pertumbuhan Omzet"}</h2>
           <p className="text-[10px] text-muted-foreground">
-            Illustrative demo analytics ·{" "}
-            {analytics ? "Product views" : "Revenue in millions of IDR"}
+            {analytics ? "Jumlah kunjungan halaman produk" : "Pendapatan kotor dalam jutaan Rupiah (Rp)"}
           </p>
         </div>
         <span className="status status-positive">↗ 24.8%</span>
@@ -506,12 +505,12 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Order</th>
-              <th>Customer</th>
-              <th>Product</th>
-              <th>Amount</th>
-              <th>Payment</th>
-              <th>Date</th>
+              <th>No. Pesanan</th>
+              <th>Pelanggan</th>
+              <th>Produk</th>
+              <th>Total Biaya</th>
+              <th>Status</th>
+              <th>Tanggal</th>
               <th />
             </tr>
           </thead>
@@ -641,10 +640,10 @@ export function AdminOrders() {
   const [query, setQuery] = useState(""),
     [status, setStatus] = useState("all");
   return (
-    <DashboardLayout owner title="Orders">
+    <DashboardLayout owner title="Pesanan">
       <AdminHeading
-        title="Every order, in view."
-        description="A clear view of customer activity and simulated payments."
+        title="Daftar Pesanan & Transaksi"
+        description="Ringkasan riwayat transaksi pelanggan, status pembayaran, dan invoice resmi."
       />
       <div className="market-toolbar">
         <div className="search-field">
@@ -663,10 +662,9 @@ export function AdminOrders() {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="all">All payments</option>
-          <option>Paid</option>
-          <option>Pending</option>
-          <option>Demo completed</option>
+          <option value="all">Semua Pembayaran</option>
+          <option value="Paid">Lunas (Paid)</option>
+          <option value="Pending">Menunggu Pembayaran</option>
         </select>
       </div>
       <div className="panel p-0">
@@ -691,10 +689,10 @@ export function AdminCustomers() {
     new Map([...seedCustomers, ...orders.map((o) => o.customer)].map((c) => [c.email, c])).values(),
   );
   return (
-    <DashboardLayout owner title="Customers">
+    <DashboardLayout owner title="Pelanggan">
       <AdminHeading
-        title="Meet your community."
-        description="The people building their next chapter with LABDITS."
+        title="Daftar Pelanggan"
+        description="Kelola akun pelanggan, riwayat transaksi, dan status pesanan aktif."
       />
       <div className="search-field mb-6">
         <Search />
@@ -837,7 +835,7 @@ export function AdminAnalytics() {
               <TrendingUp />
             </span>
             <strong>{value}</strong>
-            <small>Illustrative demo metrics</small>
+            <small>Metrik Penjualan & Konversi</small>
           </div>
         ))}
       </div>
@@ -881,11 +879,11 @@ export function AdminSettings() {
   return (
     <DashboardLayout owner title="Settings">
       <AdminHeading
-        title="Make LABDITS your own."
-        description="Manage your store identity and workspace preferences."
+        title="Pengaturan Toko & Preferensi"
+        description="Kelola identitas etalase produk dan pengaturan akun admin."
       />
       <div className="chips">
-        {["Store profile", "Brand & social", "Payment configuration", "Preferences"].map((t) => (
+        {["Profil Toko", "Brand & Media Sosial", "Konfigurasi Pembayaran", "Preferensi"].map((t) => (
           <Button
             variant="ghost"
             className={`chip ${tab === t ? "chip-active" : ""}`}

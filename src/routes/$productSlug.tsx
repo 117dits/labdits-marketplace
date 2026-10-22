@@ -5,7 +5,7 @@ import { pageHead } from '@/lib/metadata';
 // Friendly catalog URL: /dashboardkeren renders the existing preview viewer.
 // Uploaded code still lives on a separately hosted HTTPS origin, never this app origin.
 export const Route = createFileRoute('/$productSlug')({
-  head: ({ params }) => pageHead(`Demo: ${params.productSlug}`, 'Explore this LABDITS demo.'),
+  head: ({ params }) => pageHead(`Live Demo: ${params.productSlug}`, 'Uji coba langsung live preview aplikasi interaktif LABDITS.'),
   component: FriendlyDemo,
 });
 

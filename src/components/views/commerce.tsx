@@ -360,7 +360,7 @@ export function Checkout(){
 }
 export function CheckoutSuccess(){
   const { orders } = useMarketplace();
-  const order = orders.find(o => o.status === 'Paid' || o.status === 'Demo completed') || orders[0];
+  const order = orders.find(o => o.status === 'Paid') || orders[0];
   return (
     <div className="site-container py-16">
       <div className="mx-auto max-w-xl text-center">

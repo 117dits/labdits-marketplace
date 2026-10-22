@@ -145,6 +145,91 @@ function SupabaseLogin(){
     </div>
   );
 }
-export function Login(){return catalogConfigured()?<SupabaseLogin/>:<DemoLogin/>}
-function DemoLogin(){const store=useMarketplace();const [role,setRole]=useState<'customer'|'owner'>('customer');const navigate=useNavigate();return <div className="site-container py-16"><div className="mx-auto max-w-md panel"><div className="eyebrow mb-5">Welcome to your next chapter</div><h1 className="text-3xl font-medium">Your LABDITS space.</h1><p className="mt-4 text-sm leading-7 text-muted-foreground">Explore the account experience with a sample identity.</p><div className="chips mt-6">{(['customer','owner'] as const).map(r=><Button variant="ghost" className={`chip ${role===r?'chip-active':''}`} key={r} onClick={()=>setRole(r)}>{r==='customer'?'Customer demo':'Owner demo'}</Button>)}</div><form className="form-stack" onSubmit={e=>{e.preventDefault();const data=new FormData(e.currentTarget);store.setSession({name:String(data.get('name')),email:String(data.get('email')),role});toast.success('Demo workspace opened');navigate({to:role==='owner'?'/admin':'/account'});}}><div className="field"><label htmlFor="demo-name">Demo name</label><input id="demo-name" name="name" className="form-input" required defaultValue="Aditya Pratama"/></div><div className="field"><label htmlFor="demo-email">Demo email</label><input id="demo-email" name="email" type="email" className="form-input" required defaultValue="aditya@example.com"/></div><div className="notice"><ShieldCheck/>Mock sign-in only. No password, secure authentication or private account is provided. Use sample details.</div><Button type="submit">Enter {role} demo<ArrowUpRight/></Button></form></div></div>}
-export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downloads'|'settings'}){const store=useMarketplace();const own=store.orders.filter(o=>o.customer.email===store.session?.email);const paid=own.filter(o=>o.status!=='Pending');const items=paid.flatMap(o=>o.items.map(i=>({...i,orderId:o.id})));const [name,setName]=useState(store.session?.name||''),[email,setEmail]=useState(store.session?.email||'');const titles={overview:'Your next chapter.',orders:'Your order history.',downloads:'Ready for your next build.',settings:'Your account, your way.'};return <DashboardLayout title={view==='overview'?'Overview':view}><div className="app-heading"><div><div className="eyebrow mb-4">LABDITS / CUSTOMER SPACE</div><h1>{titles[view]}</h1><p>{view==='overview'?`Good to see you, ${store.session?.name||'builder'}.`:'Your products, licenses, and demo account in one place.'}</p></div><Button variant="outline" size="sm" asChild><Link to="/products">Explore<ArrowUpRight/></Link></Button></div>{view==='overview'&&<><div className="metric-grid">{[['Your products',items.length],['Demo orders',own.length],['Total demo purchases',money(paid.reduce((s,o)=>s+o.total,0))],['Support','Available']].map(([label,value])=><div className="panel metric" key={label}><span className="metric-label">{label}</span><strong>{value}</strong><small>Frontend sample account</small></div>)}</div><div className="panel mb-6"><h2>Recent orders</h2><OrdersTable orders={own.slice(0,3)}/></div></>}{view==='orders'&&<div className="panel"><h2>Order history</h2><OrdersTable orders={own}/></div>}{(view==='downloads'||view==='overview')&&<><div className="section-heading mt-8"><div><h2>Your collection.</h2></div>{view==='overview'&&<Button variant="link" asChild><Link to="/account/downloads">All downloads<ArrowUpRight/></Link></Button>}</div>{!items.length?<div className="empty-state"><Package/><h2>Your collection starts with an idea.</h2><p>Complete a demo checkout to see products and sample downloads here.</p><Button asChild><Link to="/products">Find your next project</Link></Button></div>:<div className="grid grid-cols-1 gap-5 lg:grid-cols-2">{items.map((item,index)=>{const p=store.products.find(p=>p.id===item.productId);return p?<div className="panel" key={index}><div className="table-product mb-5"><img src={p.image} alt={p.name}/><div><h3>{p.name}</h3><p>{p.subtitle}</p></div></div><div className="summary-row"><span>License</span><span>{licenseNames[item.license]}</span></div><div className="summary-row"><span>Reference</span><span className="font-mono text-[10px]">DEMO-{item.orderId}-{p.id}</span></div><div className="notice mb-4"><Info/>Sample download only. No real source code or valid license is included.</div><div className="flex flex-wrap gap-3"><Button size="sm" onClick={()=>{mockService.downloadExample(p.name);toast.success('Sample README downloaded')}}><Download/>Download sample</Button><Button size="sm" variant="outline" asChild><Link to="/support">Get support<Mail/></Link></Button></div></div>:null})}</div>}</>}{view==='settings'&&<form className="panel max-w-xl form-stack" onSubmit={e=>{e.preventDefault();if(store.session)store.setSession({...store.session,name,email});toast.success('Demo profile saved')}}><h2>Profile details</h2><div className="field"><label htmlFor="account-name">Name</label><input id="account-name" required className="form-input" value={name||store.session?.name||''} onChange={e=>setName(e.target.value)}/></div><div className="field"><label htmlFor="account-email">Email</label><input id="account-email" type="email" required className="form-input" value={email||store.session?.email||''} onChange={e=>setEmail(e.target.value)}/></div><div className="notice"><Info/>Demo profile only. Changing the email switches the mock order-history identity.</div><Button type="submit">Save profile</Button></form>}</DashboardLayout>}
+export function Login(){return <SupabaseLogin/>}
+export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downloads'|'settings'}){
+  const store=useMarketplace();
+  const own=store.orders.filter(o=>o.customer.email===store.session?.email);
+  const paid=own.filter(o=>o.status!=='Pending'&&o.status!=='Cancelled');
+  const items=paid.flatMap(o=>o.items.map(i=>({...i,orderId:o.id})));
+  const [name,setName]=useState(store.session?.name||''),[email,setEmail]=useState(store.session?.email||'');
+  const titles={overview:'Area Pelanggan Anda.',orders:'Riwayat Pesanan.',downloads:'Unduhan Source Code & Lisensi.',settings:'Pengaturan Akun.'};
+  return <DashboardLayout title={view==='overview'?'Ringkasan':view}>
+    <div className="app-heading">
+      <div>
+        <div className="eyebrow mb-4">LABDITS / AKUN SAYA</div>
+        <h1>{titles[view]}</h1>
+        <p>{view==='overview'?`Selamat datang kembali, ${store.session?.name||'Pelanggan'}.`:'Kelola lisensi, riwayat pesanan, dan unduhan source code Anda di sini.'}</p>
+      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/products">Jelajahi Produk<ArrowUpRight/></Link>
+      </Button>
+    </div>
+    {view==='overview'&&<>
+      <div className="metric-grid">
+        {[['Aplikasi Anda',items.length],['Total Pesanan',own.length],['Total Transaksi',money(paid.reduce((s,o)=>s+o.total,0))],['Bantuan Teknis','Aktif']].map(([label,value])=>
+          <div className="panel metric" key={label}>
+            <span className="metric-label">{label}</span>
+            <strong>{value}</strong>
+            <small>Status Akun Resmi</small>
+          </div>
+        )}
+      </div>
+      <div className="panel mb-6">
+        <h2>Pesanan Terbaru</h2>
+        <OrdersTable orders={own.slice(0,3)}/>
+      </div>
+    </>}
+    {view==='orders'&&<div className="panel">
+      <h2>Riwayat Seluruh Pesanan</h2>
+      <OrdersTable orders={own}/>
+    </div>}
+    {(view==='downloads'||view==='overview')&&<>
+      <div className="section-heading mt-8">
+        <div><h2>Source Code & Produk Anda</h2></div>
+        {view==='overview'&&<Button variant="link" asChild><Link to="/account/downloads">Semua unduhan<ArrowUpRight/></Link></Button>}
+      </div>
+      {!items.length?<div className="empty-state">
+        <Package/>
+        <h2>Belum ada source code yang dibeli.</h2>
+        <p>Selesaikan pembelian lisensi untuk membuka akses unduhan source code di sini.</p>
+        <Button asChild><Link to="/products">Cari Produk Sekarang</Link></Button>
+      </div>:<div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {items.map((item,index)=>{
+          const p=store.products.find(p=>p.id===item.productId);
+          return p?<div className="panel" key={index}>
+            <div className="table-product mb-5">
+              <img src={p.image} alt={p.name}/>
+              <div>
+                <h3>{p.name}</h3>
+                <p>{p.subtitle}</p>
+              </div>
+            </div>
+            <div className="summary-row"><span>Lisensi</span><span>{licenseNames[item.license]}</span></div>
+            <div className="summary-row"><span>Kode Invoice</span><span className="font-mono text-[10px]">INV-{item.orderId}-{p.id}</span></div>
+            <div className="notice mb-4"><Info/>Akses unduhan source code penuh dan panduan instalasi resmi.</div>
+            <div className="flex flex-wrap gap-3">
+              <Button size="sm" onClick={()=>{mockService.downloadExample(p.name);toast.success('Source code / panduan berhasil diunduh')}}>
+                <Download/>Unduh Source Code
+              </Button>
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/support">Hubungi Dukungan<Mail/></Link>
+              </Button>
+            </div>
+          </div>:null;
+        })}
+      </div>}
+    </>}
+    {view==='settings'&&<form className="panel max-w-xl form-stack" onSubmit={e=>{e.preventDefault();if(store.session)store.setSession({...store.session,name,email});toast.success('Pengaturan profil berhasil disimpan')}}>
+      <h2>Informasi Profil</h2>
+      <div className="field">
+        <label htmlFor="account-name">Nama Lengkap</label>
+        <input id="account-name" required className="form-input" value={name||store.session?.name||''} onChange={e=>setName(e.target.value)}/>
+      </div>
+      <div className="field">
+        <label htmlFor="account-email">Email Terdaftar</label>
+        <input id="account-email" type="email" required className="form-input" value={email||store.session?.email||''} onChange={e=>setEmail(e.target.value)}/>
+      </div>
+      <Button type="submit">Simpan Perubahan</Button>
+    </form>}
+  </DashboardLayout>;
+}

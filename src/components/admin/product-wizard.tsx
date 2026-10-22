@@ -885,7 +885,7 @@ export function ProductWizard({ id }: { id?: string }) {
               </label>
               <div className="notice">
                 <Info />
-                Illustrative pricing only. No payment gateway is connected.
+                Harga resmi produk dalam mata uang Rupiah (Rp). Terintegrasi dengan Pakasir.
               </div>
             </div>
           ) : (

@@ -13,7 +13,7 @@ export function ProjectCells({ product: p }: { product: Product }) {
   return <>
     <td className="text-xs">{pr?.analysis?.framework ?? (pr ? 'Not analyzed' : <span className="text-muted-foreground">No upload</span>)}</td>
     <td>{pr ? <span className={`status ${statusClass(s)}`}>{statusLabel[s]}</span> : <span className="text-xs text-muted-foreground">—</span>}</td>
-    <td className="text-xs">{pr ? (live ? 'Live' : 'Not live') : p.demoUrl ? 'External URL' : 'Sample walkthrough'}</td>
+    <td className="text-xs">{pr ? (live ? 'Live' : 'Not live') : p.demoUrl ? 'URL Eksternal' : 'Demo Interaktif'}</td>
     <td className="max-w-40 truncate font-mono text-[10px]">{live ? <a href={d.previewUrl} target="_blank" rel="noreferrer" className="text-primary underline">{d.previewUrl}</a> : '—'}</td>
     <td className="text-xs text-muted-foreground">{d?.updatedAt?.slice(0, 16).replace('T', ' ') ?? '—'}</td>
   </>;
