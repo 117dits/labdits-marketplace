@@ -6,7 +6,9 @@ import { ProductWizard } from '@/components/admin/product-wizard';
 import { initialProjectDraft } from '@/lib/product-wizard-flow';
 import type { Product } from '@/types';
 
-const mocks = vi.hoisted(() => ({ save: vi.fn(), products: [] as Product[], uploader: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), products: [] as Product[], uploader: vi.fn(), navigate: vi.fn(), uploadVideo: vi.fn() }));
+vi.mock('@/lib/preview-video', () => ({ uploadPreviewVideo: mocks.uploadVideo }));
+const mp4Bytes = new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
 vi.mock('@/hooks/use-marketplace', () => ({ useMarketplace: () => ({ products: mocks.products, hydrated: true, saveProductAsync: mocks.save }) }));
 vi.mock('@tanstack/react-router', () => ({ Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>, useNavigate: () => mocks.navigate }));
 vi.mock('@/components/layout/dashboard-layout', () => ({ DashboardLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
@@ -39,6 +41,30 @@ describe('wizard upload lifecycle', () => {
     expect(screen.getByRole('button', { name: /Lanjutkan/i })).toBeDisabled();
     act(() => props.onChange({ projectId: 'p', uploadId: 'u', localStatus: 'pending', files: [] }));
     expect(screen.getByRole('button', { name: /Lanjutkan/i })).not.toBeDisabled();
+  });
+  it('uses a real uploaded demo recording for card hover instead of synthesizing a product-page video', async () => {
+    const existing = { ...initialProjectDraft(), id: 'p-demo', slug: 'demo', name: 'Demo', description: 'A real app' } as Product;
+    mocks.products = [existing];
+    mocks.uploadVideo.mockResolvedValue('https://storage.example/demo.mp4');
+    render(<ProductWizard id="p-demo" />);
+    fireEvent.click(screen.getByRole('button', { name: /Lanjutkan/i }));
+    const recording = new File([mp4Bytes], 'demo.mp4', { type: 'video/mp4' });
+    const input = screen.getByLabelText(/unggah rekaman aplikasi/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [recording] } });
+    await waitFor(() => expect(mocks.uploadVideo).toHaveBeenCalledWith(recording, 'p-demo'));
+    expect(screen.getByText(/Video pratinjau aktif/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Buat Video AI Otomatis/i })).not.toBeInTheDocument();
+  });
+  it('does not publish a temporary blob video when the recording upload fails', async () => {
+    const existing = { ...initialProjectDraft(), id: 'p-demo', slug: 'demo', name: 'Demo', description: 'A real app' } as Product;
+    mocks.products = [existing];
+    mocks.uploadVideo.mockRejectedValue(new Error('Bucket unavailable'));
+    render(<ProductWizard id="p-demo" />);
+    fireEvent.click(screen.getByRole('button', { name: /Lanjutkan/i }));
+    const recording = new File([mp4Bytes], 'demo.mp4', { type: 'video/mp4' });
+    fireEvent.change(screen.getByLabelText(/unggah rekaman aplikasi/i), { target: { files: [recording] } });
+    await waitFor(() => expect(mocks.uploadVideo).toHaveBeenCalled());
+    expect(screen.getByText(/Belum ada video tersimpan/i)).toBeInTheDocument();
   });
   it('clears stale video when replacing a project but preserves edited fields', async () => {
     const existing = { ...initialProjectDraft(), id: 'old', slug: 'custom', name: 'Custom', description: 'Edited', previewVideoUrl: 'https://old/video', project: { projectId: 'old-project', uploadId: 'old-up', files: [], sourceType: 'files', totalSize: 0, localStatus: 'pending' } } as Product;

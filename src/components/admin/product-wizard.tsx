@@ -34,7 +34,7 @@ import { useMarketplace } from "@/hooks/use-marketplace";
 import { categories } from "@/data/products";
 import { applyExtractedMetadata, canAdvanceFromProject, initialProjectDraft, projectSlug } from "@/lib/product-wizard-flow";
 import { generateAIMetadata } from "@/lib/ai-metadata";
-import { generateAIPreviewVideo } from "@/lib/ai-preview-video";
+import { uploadPreviewVideo } from "@/lib/preview-video";
 import { publishReadiness } from "@/lib/publish-readiness";
 import { mockService } from "@/services/mock-service";
 import type { Product } from "@/types";
@@ -250,36 +250,17 @@ export function ProductWizard({ id }: { id?: string }) {
     }
   }
 
-  async function handleGenerateAIVideo() {
-    if (!draft.name.trim()) {
-      toast.error("Isi nama produk terlebih dahulu sebelum membuat video AI.");
-      return;
-    }
+  async function handlePreviewVideoUpload(file: File | undefined) {
+    if (!file || generatingVideo) return;
     setGeneratingVideo(true);
     try {
-      toast.info("AI sedang merender video animasi pratinjau aplikasi...");
-      const blob = await generateAIPreviewVideo({
-        title: draft.name,
-        subtitle: draft.subtitle,
-        category: draft.category,
-        features: draft.features,
-        theme: draft.theme,
-        imageUrl: draft.image,
-      });
-      let videoUrl: string | undefined;
-      const targetId = draft.id || persistedDraftId.current || `p-${Date.now()}`;
-      try {
-        const { uploadPreviewVideo } = await import("@/lib/preview-video");
-        const videoFile = new File([blob], `preview-${draft.slug || "app"}.webm`, { type: blob.type });
-        videoUrl = await uploadPreviewVideo(videoFile, targetId);
-      } catch {
-        videoUrl = URL.createObjectURL(blob);
-      }
-
-      setDraft((curr) => ({ ...curr, previewVideoUrl: videoUrl }));
-      toast.success("Video pratinjau AI berhasil dibuat! Video akan diputar saat kartu di-hover.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal membuat video AI.");
+      // Create the draft before storage upload so the recording has a stable product ID.
+      const targetId = await ensurePersistedProduct();
+      const url = await uploadPreviewVideo(file, targetId);
+      setDraft((current) => ({ ...current, previewVideoUrl: url }));
+      toast.success("Rekaman aplikasi siap diputar pada hover kartu katalog. Simpan produk untuk menerbitkannya.");
+    } catch (error) {
+      toast.error(error instanceof Error ? `Video gagal diunggah: ${error.message}` : "Video gagal diunggah.");
     } finally {
       setGeneratingVideo(false);
     }
@@ -998,22 +979,28 @@ export function ProductWizard({ id }: { id?: string }) {
                   <div>
                     <h4 className="text-sm font-semibold flex items-center gap-1.5">
                       <Film className="h-4 w-4 text-primary" />
-                      Video Pratinjau untuk Hover Kartu Produk
+                      Rekaman Aplikasi untuk Hover Kartu Katalog
                     </h4>
                     <p className="text-xs text-muted-foreground">
-                      Video ini diputar otomatis saat calon pembeli mengarahkan kursor (hover) ke kartu produk di katalog marketplace.
+                      Rekam tampilan aplikasi/demo yang diunggah, bukan halaman detail produk LABDITS. Video diputar saat pembeli hover kartu katalog. Jika demo sudah ter-deploy dan worker rekaman aktif, video dapat dibuat otomatis setelah produk diterbitkan.
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={generatingVideo}
-                    onClick={handleGenerateAIVideo}
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-primary mr-1.5" />
-                    {generatingVideo ? "AI Sedang Merender Video..." : "✨ Buat Video AI Otomatis"}
-                  </Button>
+                  <label htmlFor="hover-demo-recording" className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-2 text-xs font-medium hover:bg-accent focus-within:ring-2 focus-within:ring-ring">
+                    <Upload className="h-4 w-4" />
+                    {generatingVideo ? "Mengunggah rekaman…" : "Unggah rekaman aplikasi (MP4/WebM)"}
+                    <input
+                      id="hover-demo-recording"
+                      aria-label="Unggah rekaman aplikasi"
+                      className="sr-only"
+                      type="file"
+                      accept="video/mp4,video/webm,.mp4,.webm"
+                      disabled={generatingVideo}
+                      onChange={(event) => {
+                        void handlePreviewVideoUpload(event.currentTarget.files?.[0]);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
                 </div>
 
                 {draft.previewVideoUrl ? (
@@ -1044,7 +1031,7 @@ export function ProductWizard({ id }: { id?: string }) {
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground italic">
-                    Belum ada video tersimpan. Klik &ldquo;✨ Buat Video AI Otomatis&rdquo; untuk merender simulasi video animasi interaktif dari aplikasi ini.
+                    Belum ada video tersimpan. Unggah rekaman asli aplikasi, atau terbitkan produk dengan demo yang sudah ter-deploy dan aktifkan worker perekam di server. Video simulasi tidak akan digunakan sebagai rekaman aplikasi.
                   </p>
                 )}
               </div>
