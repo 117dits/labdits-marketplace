@@ -18,11 +18,14 @@ export function initialProjectDraft(): Product {
 }
 
 export function applyExtractedMetadata(draft: Product, meta: SuggestedMetadata): Product {
+  const resolvedName = draft.name || meta.title || '';
+  const resolvedDesc = draft.description || meta.description || draft.subtitle || '';
+  const resolvedSlug = draft.slug ? projectSlug(draft.slug) : projectSlug(resolvedName);
   return {
     ...draft,
-    name: draft.name || meta.title || '',
-    slug: draft.slug || projectSlug(meta.title || ''),
-    description: draft.description || meta.description || '',
+    name: resolvedName,
+    slug: resolvedSlug,
+    description: resolvedDesc,
     subtitle: draft.subtitle || (meta.description || '').slice(0, 120),
     image: draft.image || meta.thumbnailUrl || '',
     stack: draft.stack.length ? draft.stack : (meta.suggestedTags || []),
@@ -32,5 +35,8 @@ export function applyExtractedMetadata(draft: Product, meta: SuggestedMetadata):
 }
 
 export function canAdvanceFromProject(draft: Pick<Product, 'name' | 'slug' | 'description'>): boolean {
-  return Boolean(draft.name.trim() && draft.slug.trim() && draft.description.trim() && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.slug));
+  const name = draft.name?.trim() || '';
+  const description = draft.description?.trim() || '';
+  const effectiveSlug = projectSlug(draft.slug || name);
+  return Boolean(name && description && effectiveSlug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(effectiveSlug));
 }

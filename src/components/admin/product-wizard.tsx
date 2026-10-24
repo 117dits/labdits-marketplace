@@ -232,7 +232,7 @@ export function ProductWizard({ id }: { id?: string }) {
       setDraft((curr) => ({
         ...curr,
         name: ai.title,
-        slug: !id || curr.slug.startsWith("draft-") ? ai.slug : curr.slug,
+        slug: ai.slug || projectSlug(ai.title || curr.slug),
         subtitle: ai.subtitle,
         description: ai.description,
         features: ai.features,
@@ -390,8 +390,32 @@ export function ProductWizard({ id }: { id?: string }) {
         toast.error("Unggah proyek terlebih dahulu hingga seluruh proses selesai.");
         return;
       }
-      if (step === 0 && !canAdvanceFromProject(draft)) {
-        toast.error("Informasi proyek belum lengkap. Isi nama, slug, dan deskripsi setelah unggahan dianalisis.");
+      if (step === 0) {
+        const cleanSlug = projectSlug(draft.slug || draft.name);
+        const resolvedDesc = draft.description?.trim() || draft.subtitle?.trim() || '';
+        const updatedDraft = {
+          ...draft,
+          slug: cleanSlug || draft.slug,
+          description: resolvedDesc || draft.description,
+        };
+
+        if (updatedDraft.slug !== draft.slug || updatedDraft.description !== draft.description) {
+          setDraft(updatedDraft);
+        }
+
+        if (!updatedDraft.name.trim()) {
+          toast.error("Nama produk wajib diisi.");
+          return;
+        }
+        if (!updatedDraft.description.trim()) {
+          toast.error("Deskripsi produk wajib diisi.");
+          return;
+        }
+        if (!cleanSlug || !canAdvanceFromProject(updatedDraft)) {
+          toast.error("Format nama atau slug produk tidak valid. Gunakan huruf atau angka.");
+          return;
+        }
+        setStep(stepOrder[stepOrder.indexOf(step as typeof stepOrder[number]) + 1] ?? 4);
         return;
       }
       if (step === 3 && (!draft.price || !draft.commercialPrice || !draft.installationPrice)) {
@@ -406,7 +430,14 @@ export function ProductWizard({ id }: { id?: string }) {
       toast.error("Tinjau dan konfirmasi informasi produk terlebih dahulu.");
       return;
     }
-    if (!canAdvanceFromProject(draft)) {
+    const cleanSlug = projectSlug(draft.slug || draft.name);
+    const resolvedDesc = draft.description?.trim() || draft.subtitle?.trim() || '';
+    const finalDraft = {
+      ...draft,
+      slug: cleanSlug || draft.slug,
+      description: resolvedDesc || draft.description,
+    };
+    if (!canAdvanceFromProject(finalDraft)) {
       toast.error("Nama, slug, dan deskripsi harus diperiksa sebelum menyimpan produk.");
       setStep(0);
       return;
@@ -422,10 +453,10 @@ export function ProductWizard({ id }: { id?: string }) {
       return;
     }
     const product = {
-      ...draft,
+      ...finalDraft,
       id: draft.id || `p-${Date.now()}`,
       updated: new Date().toISOString().slice(0, 10),
-      subtitle: draft.subtitle || draft.category,
+      subtitle: finalDraft.subtitle || finalDraft.category,
     };
     setSaving(true);
     try {
@@ -515,12 +546,15 @@ export function ProductWizard({ id }: { id?: string }) {
                     value={draft.name}
                     placeholder="Your next great product"
                     onChange={(event) => {
-                      setDraft((current) => ({
-                        ...current,
-                        name: event.target.value,
-                        slug: !id && current.slug === projectSlug(current.name)
-                          ? projectSlug(event.target.value) : current.slug,
-                      }));
+                      const newName = event.target.value;
+                      setDraft((current) => {
+                        const shouldUpdateSlug = !id && (!current.slug || current.slug === projectSlug(current.name));
+                        return {
+                          ...current,
+                          name: newName,
+                          slug: shouldUpdateSlug ? projectSlug(newName) : current.slug,
+                        };
+                      });
                     }}
                   />
                 </div>
@@ -529,9 +563,15 @@ export function ProductWizard({ id }: { id?: string }) {
                   <input
                     id="product-slug"
                     className="form-input"
-                    pattern="[a-z0-9-]+"
                     value={draft.slug}
-                    onChange={(event) => update("slug", event.target.value)}
+                    onChange={(event) => {
+                      const val = event.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                      update("slug", val);
+                    }}
+                    onBlur={() => {
+                      const clean = projectSlug(draft.slug || draft.name);
+                      if (clean) update("slug", clean);
+                    }}
                     placeholder="your-product"
                   />
                 </div>

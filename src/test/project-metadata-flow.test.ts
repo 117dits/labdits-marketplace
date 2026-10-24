@@ -58,4 +58,22 @@ describe('metadata-first product flow', () => {
   it('rejects a publishable listing if metadata cannot provide a meaningful title or description', () => {
     expect(canAdvanceFromProject(applyExtractedMetadata(initialProjectDraft(), { title: 'Aplikasi' }))).toBe(false);
   });
+  it('allows advancing when slug has raw user formatting like spaces or uppercase', () => {
+    const draft = {
+      ...initialProjectDraft(),
+      name: 'Kasir Toko Pintar',
+      slug: 'Kasir Toko Pintar',
+      description: 'Sistem POS untuk kasir toko',
+    };
+    expect(canAdvanceFromProject(draft)).toBe(true);
+  });
+  it('allows advancing when slug is blank but name is provided', () => {
+    const draft = {
+      ...initialProjectDraft(),
+      name: 'Sistem Manajemen Inventaris',
+      slug: '',
+      description: 'Aplikasi pencatatan stok barang gudang',
+    };
+    expect(canAdvanceFromProject(draft)).toBe(true);
+  });
 });
