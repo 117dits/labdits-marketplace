@@ -13,11 +13,13 @@ import {
   Check,
   CheckCircle2,
   FileArchive,
+  Film,
   FolderOpen,
   ImagePlus,
   Info,
   LoaderCircle,
   Plus,
+  Sparkles,
   Upload,
   X,
 } from "lucide-react";
@@ -29,18 +31,23 @@ import { AdminHeading } from "@/components/admin/admin-pages";
 import { ProjectUploader } from "@/components/admin/project-uploader";
 import { ProductCard } from "@/components/products/product-card";
 import { useMarketplace } from "@/hooks/use-marketplace";
-import { categories, seedProducts } from "@/data/products";
+import { categories } from "@/data/products";
+import { applyExtractedMetadata, canAdvanceFromProject, initialProjectDraft, projectSlug } from "@/lib/product-wizard-flow";
+import { generateAIMetadata } from "@/lib/ai-metadata";
+import { generateAIPreviewVideo } from "@/lib/ai-preview-video";
 import { publishReadiness } from "@/lib/publish-readiness";
 import { mockService } from "@/services/mock-service";
 import type { Product } from "@/types";
 
 const steps = [
-  "Basic information",
-  "Project & deployment",
-  "Demo configuration",
-  "Pricing",
-  "Publish",
+  "Unggah proyek",
+  "Informasi otomatis",
+  "Konfigurasi pratinjau",
+  "Harga",
+  "Terbitkan",
 ];
+// Preserve existing editor step IDs while displaying upload before the metadata review.
+const stepOrder = [1, 0, 2, 3, 4] as const;
 const FILE_PREVIEW_LIMIT = 10;
 
 type UploadFile = {
@@ -116,28 +123,16 @@ export function ProductWizard({ id }: { id?: string }) {
   const existing = store.products.find((product) => product.id === id);
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
-  const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<Product>(
-    () =>
-      existing || {
-        ...(seedProducts[0] ?? { image: "", theme: "mint", version: "1.0.0", updated: "" }),
-        id: "",
-        slug: "",
-        name: "",
-        subtitle: "",
-        description: "",
-        category: categories[0] ?? "Custom Applications",
-        features: [],
-        stack: ["React", "TypeScript", "Tailwind CSS"],
-        price: 899000,
-        commercialPrice: 1798000,
-        installationPrice: 2697000,
-        status: "draft",
-        featured: false,
-        popularity: 0,
-        files: [],
-      },
-  );
+  const [step, setStep] = useState(existing ? 0 : 1);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<Product>(() => existing || initialProjectDraft());
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const persistedDraftId = useRef<string | null>(existing?.id ?? null);
+  const pendingDraftSave = useRef<Promise<string> | null>(null);
+  const [uploaderBusy, setUploaderBusy] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [generatingVideo, setGeneratingVideo] = useState(false);
   const [feature, setFeature] = useState("");
   const [progress, setProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "complete">("idle");
@@ -152,6 +147,8 @@ export function ProductWizard({ id }: { id?: string }) {
 
   useEffect(() => {
     if (existing && !ready) {
+      setStep(0);
+      persistedDraftId.current = existing.id;
       setDraft(existing);
       setFiles(
         (existing.files ?? []).map((name) => ({
@@ -186,11 +183,106 @@ export function ProductWizard({ id }: { id?: string }) {
   const update = <K extends keyof Product>(key: K, value: Product[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
+  async function ensurePersistedProduct(): Promise<string> {
+    if (persistedDraftId.current) return persistedDraftId.current;
+    if (pendingDraftSave.current) return pendingDraftSave.current;
+    const token = crypto.randomUUID();
+    const id = `p-${token}`;
+    const snapshot = draftRef.current;
+    const pending = store.saveProductAsync({
+      ...snapshot, id, slug: `upload-${token}`,
+      name: snapshot.name || `Upload ${token}`, status: "draft",
+      updated: new Date().toISOString().slice(0, 10),
+    }).then(() => {
+      persistedDraftId.current = id;
+      setDraft((current) => ({ ...current, id }));
+      return id;
+    });
+    pendingDraftSave.current = pending;
+    try { return await pending; }
+    finally { pendingDraftSave.current = null; }
+  }
+
   function updateProject(project: Product["project"]) {
-    const { project: _currentProject, ...withoutProject } = draft;
-    const next: Product = project ? { ...draft, project } : withoutProject;
-    setDraft(next);
-    if (existing) store.saveProduct(next);
+    setDraft((current) => {
+      if (project) {
+        // A patch to the same project keeps its preview; replacement cannot reuse it.
+        if (current.project && project.projectId !== current.project.projectId && !project.uploadId) {
+          const { previewVideoUrl: _video, ...rest } = current;
+          return { ...rest, project };
+        }
+        return { ...current, project };
+      }
+      const { project: _project, previewVideoUrl: _video, ...rest } = current;
+      return rest;
+    });
+  }
+
+  async function handleRegenerateAI() {
+    setGeneratingAI(true);
+    try {
+      const ai = await generateAIMetadata({
+        rawTitle: draft.name,
+        rawDescription: draft.description,
+        files: draft.project?.files?.map((f) => f.path) || [],
+        headings: draft.features,
+        category: draft.category,
+      });
+
+      setDraft((curr) => ({
+        ...curr,
+        name: ai.title,
+        slug: !id || curr.slug.startsWith("draft-") ? ai.slug : curr.slug,
+        subtitle: ai.subtitle,
+        description: ai.description,
+        features: ai.features,
+        category: ai.category,
+        stack: Array.from(new Set([...curr.stack, ...ai.stack])),
+        price: curr.price || ai.suggestedPrices?.price || curr.price,
+        commercialPrice: curr.commercialPrice || ai.suggestedPrices?.commercialPrice || curr.commercialPrice,
+        installationPrice: curr.installationPrice || ai.suggestedPrices?.installationPrice || curr.installationPrice,
+      }));
+      toast.success("Informasi produk berhasil dibuat & dipoles menggunakan AI.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menjalankan analisis AI.");
+    } finally {
+      setGeneratingAI(false);
+    }
+  }
+
+  async function handleGenerateAIVideo() {
+    if (!draft.name.trim()) {
+      toast.error("Isi nama produk terlebih dahulu sebelum membuat video AI.");
+      return;
+    }
+    setGeneratingVideo(true);
+    try {
+      toast.info("AI sedang merender video animasi pratinjau aplikasi...");
+      const blob = await generateAIPreviewVideo({
+        title: draft.name,
+        subtitle: draft.subtitle,
+        category: draft.category,
+        features: draft.features,
+        theme: draft.theme,
+        imageUrl: draft.image,
+      });
+      let videoUrl: string | undefined;
+      const targetId = draft.id || persistedDraftId.current || `p-${Date.now()}`;
+      try {
+        const { uploadPreviewVideo } = await import("@/lib/preview-video");
+        const videoFile = new File([blob], `preview-${draft.slug || "app"}.webm`, { type: blob.type });
+        videoUrl = await uploadPreviewVideo(videoFile, targetId);
+      } catch {
+        videoUrl = URL.createObjectURL(blob);
+      }
+
+      setDraft((curr) => ({ ...curr, previewVideoUrl: videoUrl }));
+      toast.success("Video pratinjau AI berhasil dibuat! Video akan diputar saat kartu di-hover.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal membuat video AI.");
+    } finally {
+      setGeneratingVideo(false);
+    }
   }
 
   async function selectFiles(selected: SelectedFile[], source: "zip" | "folder" | "drop") {
@@ -290,28 +382,33 @@ export function ProductWizard({ id }: { id?: string }) {
     toast.success(`${removed} invalid ${removed === 1 ? "file" : "files"} removed.`);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
     if (step < 4) {
-      if (step === 0 && (!draft.name.trim() || !draft.slug.trim() || !draft.description.trim())) {
-        toast.error("Add a product name, slug, and description.");
+      if (step === 1 && (uploaderBusy || !draft.project?.uploadId || !draft.project?.projectId || draft.project.localStatus === "uploading" || draft.project.localStatus === "analyzing")) {
+        toast.error("Unggah proyek terlebih dahulu hingga seluruh proses selesai.");
         return;
       }
-      if (step === 1 && draft.project && !draft.project.uploadId) {
-        toast.error("Upload the project successfully before continuing to demo configuration.");
+      if (step === 0 && !canAdvanceFromProject(draft)) {
+        toast.error("Informasi proyek belum lengkap. Isi nama, slug, dan deskripsi setelah unggahan dianalisis.");
         return;
       }
       if (step === 3 && (!draft.price || !draft.commercialPrice || !draft.installationPrice)) {
-        toast.error("Complete all required prices.");
+        toast.error("Lengkapi seluruh harga terlebih dahulu.");
         return;
       }
-      setStep((current) => current + 1);
-      if (step === 1 && draft.project?.uploadId) toast.success("Upload complete. Configure your demo next.");
+      setStep(stepOrder[stepOrder.indexOf(step as typeof stepOrder[number]) + 1] ?? 4);
       return;
     }
 
     if (!confirmed) {
-      toast.error("Confirm the frontend-only demo publication first.");
+      toast.error("Tinjau dan konfirmasi informasi produk terlebih dahulu.");
+      return;
+    }
+    if (!canAdvanceFromProject(draft)) {
+      toast.error("Nama, slug, dan deskripsi harus diperiksa sebelum menyimpan produk.");
+      setStep(0);
       return;
     }
     const readinessIssues = publishReadiness(draft);
@@ -320,7 +417,7 @@ export function ProductWizard({ id }: { id?: string }) {
       return;
     }
     if (store.products.some((product) => product.slug === draft.slug && product.id !== draft.id)) {
-      toast.error("This slug is already used by another product.");
+      toast.error("Slug ini sudah digunakan produk lain.");
       setStep(0);
       return;
     }
@@ -330,22 +427,25 @@ export function ProductWizard({ id }: { id?: string }) {
       updated: new Date().toISOString().slice(0, 10),
       subtitle: draft.subtitle || draft.category,
     };
-    store.saveProduct(product);
-    toast.success(
-      product.status === "published"
-        ? "Product published to the marketplace!"
-        : "Product saved as a draft",
-    );
-    navigate({ to: "/admin/products" });
+    setSaving(true);
+    try {
+      await store.saveProductAsync(product);
+      toast.success(product.status === "published" ? "Produk berhasil diterbitkan." : "Produk tersimpan sebagai draf.");
+      navigate({ to: "/admin/products" });
+    } catch (error) {
+      toast.error(error instanceof Error ? `Produk gagal disimpan: ${error.message}` : "Produk gagal disimpan.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (id && !existing && store.hydrated) {
     return (
-      <DashboardLayout owner title="Edit product">
+      <DashboardLayout owner title="Sunting produk">
         <div className="empty-state">
-          <h2>Product not found</h2>
+          <h2>Produk tidak ditemukan</h2>
           <Button asChild>
-            <Link to="/admin/products">Back to products</Link>
+            <Link to="/admin/products">Kembali ke produk</Link>
           </Button>
         </div>
       </DashboardLayout>
@@ -362,15 +462,15 @@ export function ProductWizard({ id }: { id?: string }) {
   const isUploading = uploadStatus === "uploading";
 
   return (
-    <DashboardLayout owner title={id ? "Edit product" : "New product"}>
+    <DashboardLayout owner title={id ? "Sunting produk" : "Produk baru"}>
       <AdminHeading
-        title={id ? `Refine ${existing?.name || "your product"}.` : "Build your next bestseller."}
-        description="A thoughtful product listing, from first impression to final detail."
+        title={id ? `Sunting ${existing?.name || "produk"}.` : "Unggah proyek terlebih dahulu."}
+        description="Nama, slug, deskripsi, teknologi, dan thumbnail akan diambil dari isi aplikasi setelah proyek dipilih; tinjau hasilnya sebelum terbit."
       />
       <div className="wizard-steps">
         {steps.map((label, index) => (
-          <div key={label} className={`wizard-step ${step === index ? "wizard-active" : ""}`}>
-            <span>{index < step ? "✓" : `0${index + 1}`}</span>
+          <div key={label} className={`wizard-step ${stepOrder[index] === step ? "wizard-active" : ""}`}>
+            <span>{index < stepOrder.indexOf(step as typeof stepOrder[number]) ? "✓" : `0${index + 1}`}</span>
             {label}
           </div>
         ))}
@@ -383,33 +483,49 @@ export function ProductWizard({ id }: { id?: string }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <h2>{steps[step]}</h2>
+          <h2>{steps[stepOrder.indexOf(step as typeof stepOrder[number])]}</h2>
           {step === 0 ? (
             <div className="form-stack">
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-md bg-secondary/30 border border-border">
+                <div className="text-xs">
+                  <span className="font-semibold text-foreground flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Analisis & Metadata AI
+                  </span>
+                  <p className="text-muted-foreground mt-0.5">
+                    Metadata dianalisis otomatis dari aplikasi yang diunggah. Klik tombol di kanan jika ingin memoles ulang dengan AI.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={generatingAI}
+                  onClick={handleRegenerateAI}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-primary mr-1.5" />
+                  {generatingAI ? "AI Sedang Menulis..." : "✨ Buat / Poles dengan AI"}
+                </Button>
+              </div>
               <div className="form-grid">
                 <div className="field">
-                  <label htmlFor="product-name">Product name *</label>
+                  <label htmlFor="product-name">Nama produk (otomatis, dapat disunting) *</label>
                   <input
                     id="product-name"
                     className="form-input"
                     value={draft.name}
                     placeholder="Your next great product"
                     onChange={(event) => {
-                      update("name", event.target.value);
-                      if (!id) {
-                        update(
-                          "slug",
-                          event.target.value
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, "-")
-                            .replace(/^-|-$/g, ""),
-                        );
-                      }
+                      setDraft((current) => ({
+                        ...current,
+                        name: event.target.value,
+                        slug: !id && current.slug === projectSlug(current.name)
+                          ? projectSlug(event.target.value) : current.slug,
+                      }));
                     }}
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor="product-slug">URL slug *</label>
+                  <label htmlFor="product-slug">Slug URL (otomatis) *</label>
                   <input
                     id="product-slug"
                     className="form-input"
@@ -446,7 +562,7 @@ export function ProductWizard({ id }: { id?: string }) {
                 </div>
               </div>
               <div className="field">
-                <label htmlFor="product-description">Description *</label>
+                <label htmlFor="product-description">Deskripsi hasil analisis *</label>
                 <textarea
                   id="product-description"
                   className="form-input"
@@ -522,17 +638,16 @@ export function ProductWizard({ id }: { id?: string }) {
           ) : step === 1 ? (
             <div className="form-stack">
               <ProjectUploader
-                productId={draft.id || draft.slug || "new"}
+                productId={draft.id || ""}
+                onBeforeUpload={ensurePersistedProduct}
+                onBusyChange={setUploaderBusy}
                 value={draft.project}
                 onChange={updateProject}
+                onVideoUploaded={(url) => setDraft((current) => ({ ...current, previewVideoUrl: url }))}
                 onAutoExtracted={(extracted) => {
-                  setDraft((curr) => ({
-                    ...curr,
-                    name: curr.name || extracted.title || curr.name,
-                    slug: curr.slug || (extracted.title ? extracted.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") : curr.slug),
-                    description: curr.description || extracted.description || curr.description,
-                    subtitle: curr.subtitle || extracted.description?.slice(0, 50) || curr.subtitle,
-                    image: extracted.thumbnail || curr.image,
+                  setDraft((curr) => applyExtractedMetadata(curr, {
+                    ...extracted,
+                    thumbnailUrl: extracted.thumbnail,
                   }));
                 }}
               />
@@ -761,7 +876,7 @@ export function ProductWizard({ id }: { id?: string }) {
                 </div>
               )}
               <div className="field">
-                <label htmlFor="demo-url">External HTTPS demo URL (optional)</label>
+                <label htmlFor="demo-url">URL demo HTTPS eksternal (opsional)</label>
                 <input
                   id="demo-url"
                   type="url"
@@ -772,26 +887,25 @@ export function ProductWizard({ id }: { id?: string }) {
                     setDraft((current) => ({
                       ...current,
                       demoUrl,
-                      demoMode: demoUrl.trim() ? 'iframe' : current.demoMode,
+                      demoMode: demoUrl.trim() ? 'iframe' : (current.demoMode || 'iframe'),
                     }));
                   }}
                   placeholder="https://your-demo.example.com"
                 />
               </div>
               <div className="field">
-                <label htmlFor="demo-mode">Preview mode</label>
+                <label htmlFor="demo-mode">Mode pratinjau</label>
                 <select
                   id="demo-mode"
                   className="form-input"
-                  value={draft.demoMode || "mock"}
+                  value={draft.demoMode || "iframe"}
                   onChange={(event) => update("demoMode", event.target.value)}
                 >
-                  <option value="mock">Interactive mock workspace</option>
-                  <option value="iframe">Embedded website (requires HTTPS URL)</option>
+                  <option value="iframe">Situs aplikasi (memerlukan URL HTTPS)</option>
                 </select>
               </div>
               <div>
-                <p className="mb-3 text-xs text-muted-foreground">Supported devices</p>
+                <p className="mb-3 text-xs text-muted-foreground">Perangkat yang didukung</p>
                 <div className="flex flex-wrap gap-6">
                   {["Desktop", "Tablet", "Mobile"].map((device) => (
                     <label className="filter-choice" key={device}>
@@ -814,12 +928,12 @@ export function ProductWizard({ id }: { id?: string }) {
               </div>
               <div className="notice">
                 <Info />
-                Only public test-account credentials belong here. Never enter real or private
-                passwords. Demo fields are stored in this browser.
+                Gunakan hanya akun uji publik. Jangan masukkan kata sandi pribadi atau akun produksi.
+                Data yang disimpan di katalog dapat dibaca pengunjung.
               </div>
               <div className="form-grid">
                 <div className="field">
-                  <label htmlFor="demo-user">Public demo username</label>
+                  <label htmlFor="demo-user">Nama pengguna akun uji publik</label>
                   <input
                     id="demo-user"
                     className="form-input"
@@ -828,7 +942,7 @@ export function ProductWizard({ id }: { id?: string }) {
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor="demo-pass">Public test password</label>
+                  <label htmlFor="demo-pass">Kata sandi akun uji publik</label>
                   <input
                     id="demo-pass"
                     type="password"
@@ -839,8 +953,63 @@ export function ProductWizard({ id }: { id?: string }) {
                   />
                 </div>
               </div>
+              <div className="panel p-4 border rounded-md bg-secondary/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                      <Film className="h-4 w-4 text-primary" />
+                      Video Pratinjau untuk Hover Kartu Produk
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Video ini diputar otomatis saat calon pembeli mengarahkan kursor (hover) ke kartu produk di katalog marketplace.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={generatingVideo}
+                    onClick={handleGenerateAIVideo}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-primary mr-1.5" />
+                    {generatingVideo ? "AI Sedang Merender Video..." : "✨ Buat Video AI Otomatis"}
+                  </Button>
+                </div>
+
+                {draft.previewVideoUrl ? (
+                  <div className="space-y-2 pt-2">
+                    <div className="relative aspect-video max-w-sm rounded-md overflow-hidden border border-border bg-black">
+                      <video
+                        src={draft.previewVideoUrl}
+                        controls
+                        muted
+                        loop
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="text-success flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Video pratinjau aktif
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => update("previewVideoUrl", undefined)}
+                      >
+                        Hapus video
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Belum ada video tersimpan. Klik &ldquo;✨ Buat Video AI Otomatis&rdquo; untuk merender simulasi video animasi interaktif dari aplikasi ini.
+                  </p>
+                )}
+              </div>
               <span className="status status-positive">
-                {draft.demoUrl ? "External URL configured" : "Mock demo available"}
+                {draft.project?.deployment?.verified || draft.demoUrl ? "Alamat pratinjau tersedia" : "Pratinjau belum tersedia"}
               </span>
             </div>
           ) : step === 3 ? (
@@ -848,10 +1017,10 @@ export function ProductWizard({ id }: { id?: string }) {
               <div className="form-grid">
                 {(
                   [
-                    ["price", "Personal license price"],
-                    ["commercialPrice", "Commercial license price"],
-                    ["installationPrice", "Installation + customization"],
-                    ["discountPrice", "Discount price (optional)"],
+                    ["price", "Harga lisensi personal"],
+                    ["commercialPrice", "Harga lisensi komersial"],
+                    ["installationPrice", "Instalasi dan kustomisasi"],
+                    ["discountPrice", "Harga diskon (opsional)"],
                   ] as const
                 ).map(([key, label]) => (
                   <div className="field" key={key}>
@@ -881,7 +1050,7 @@ export function ProductWizard({ id }: { id?: string }) {
                   checked={draft.freeDemo !== false}
                   onChange={(event) => update("freeDemo", event.target.checked)}
                 />
-                Free demo availability
+                Demo aplikasi tersedia gratis
               </label>
               <div className="notice">
                 <Info />
@@ -895,13 +1064,13 @@ export function ProductWizard({ id }: { id?: string }) {
                   product={{
                     ...draft,
                     id: draft.id || "preview",
-                    name: draft.name || "Your product",
+                    name: draft.name || "Produk baru",
                   }}
                 />
               </div>
               <div className="form-stack">
                 <div className="field">
-                  <label htmlFor="publish-status">Publication status</label>
+                  <label htmlFor="publish-status">Status penerbitan</label>
                   <select
                     id="publish-status"
                     className="form-input"
@@ -910,9 +1079,9 @@ export function ProductWizard({ id }: { id?: string }) {
                       update("status", event.target.value === "published" ? "published" : "draft")
                     }
                   >
-                    <option value="draft">Draft — keep it in the studio</option>
+                    <option value="draft">Draf — belum ditampilkan di katalog</option>
                     <option value="published" disabled={publishReadiness(draft).length > 0}>
-                      Published — show in marketplace
+                      Terbit — tampil di katalog
                     </option>
                   </select>
                 </div>
@@ -927,7 +1096,7 @@ export function ProductWizard({ id }: { id?: string }) {
                     checked={draft.featured}
                     onChange={(event) => update("featured", event.target.checked)}
                   />
-                  Feature on the homepage
+                  Tampilkan di beranda
                 </label>
                 <label className="filter-choice">
                   <input
@@ -935,11 +1104,10 @@ export function ProductWizard({ id }: { id?: string }) {
                     checked={confirmed}
                     onChange={(event) => setConfirmed(event.target.checked)}
                   />
-                  I confirm this is a frontend-only demo publication.
+                  Saya telah meninjau informasi produk dan berhak menerbitkan aplikasi ini.
                 </label>
                 <div className="notice">
-                  <Info />A product can be published only after its deployment returns a verified
-                  live preview URL.
+                  <Info />Produk hanya dapat diterbitkan setelah deployment memiliki URL pratinjau HTTPS publik yang terverifikasi.
                 </div>
               </div>
             </div>
@@ -949,21 +1117,26 @@ export function ProductWizard({ id }: { id?: string }) {
           <Button
             variant="outline"
             type="button"
-            onClick={() =>
-              step ? setStep((current) => current - 1) : navigate({ to: "/admin/products" })
-            }
+            onClick={() => {
+              const index = stepOrder.indexOf(step as typeof stepOrder[number]);
+              if (index > 0) setStep(stepOrder[index - 1]!);
+              else navigate({ to: "/admin/products" });
+            }}
           >
             <ArrowLeft />
-            {step ? "Back" : "Cancel"}
+            {stepOrder.indexOf(step as typeof stepOrder[number]) > 0 ? "Kembali" : "Batal"}
           </Button>
-          <Button type="submit" disabled={step === 1 && isUploading}>
-            {step === 1 && isUploading
-              ? `Inspecting ${progress}%`
+          {id && step === 0 && (
+            <Button type="button" variant="outline" onClick={() => setStep(1)}>Unggah proyek baru</Button>
+          )}
+          <Button type="submit" disabled={saving || (step === 1 && (isUploading || uploaderBusy || !draft.project?.projectId || !draft.project?.uploadId || draft.project.localStatus === "uploading" || draft.project.localStatus === "analyzing"))}>
+            {saving ? "Menyimpan…" : step === 1 && isUploading
+              ? `Memeriksa ${progress}%`
               : step === 4
                 ? draft.status === "published"
-                  ? "Publish product"
-                  : "Save draft"
-                : "Continue"}
+                  ? "Terbitkan produk"
+                  : "Simpan draf"
+                : "Lanjutkan"}
             {step === 1 && isUploading ? (
               <LoaderCircle className="upload-spinner" />
             ) : step === 4 ? (

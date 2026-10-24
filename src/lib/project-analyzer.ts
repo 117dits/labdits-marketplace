@@ -44,6 +44,8 @@ export const KEY_FILES = [
 ];
 const READABLE = new Set([
   "package.json",
+  "index.html",
+  "index_raw.html",
   "angular.json",
   ".env.example",
   ".env.sample",

@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test capture-preview.test.mjs preview-worker.test.mjs",
+    "preview:once": "node preview-worker.mjs --once",
+    "preview:watch": "node preview-worker.mjs --watch"
+  },
+  "dependencies": {
+    "playwright": "^1.56.1"
+  }
+}

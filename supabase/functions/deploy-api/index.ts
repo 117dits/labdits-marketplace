@@ -68,12 +68,43 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
+    // The service-role client bypasses RLS. Never expose Vercel or project data
+    // to callers who have not proven an active admin session.
+    const bearer = req.headers.get("authorization")?.match(/^Bearer (\S+)$/i)?.[1];
+    if (!bearer) return json({ errorMessage: "Authentication required." }, 401);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(bearer);
+    if (authError || !user) return json({ errorMessage: "Authentication required." }, 401);
+    const { data: role, error: roleError } = await supabase.from("user_roles")
+      .select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+    if (roleError) throw roleError;
+    if (role?.role !== "admin") return json({ errorMessage: "Admin access required." }, 403);
+
     // 1. Upload files: POST /api/projects/upload
     if (path.endsWith("/api/projects/upload") && req.method === "POST") {
       const form = await req.formData();
-      const productId = String(form.get("productId") || "product");
+      const productId = form.get("productId");
+      if (typeof productId !== "string" || !productId.trim() || productId === "new") {
+        return json({ errorMessage: "A saved product ID is required before uploading files." }, 400);
+      }
+      const { data: product, error: productError } = await supabase.from("products")
+        .select("id").eq("id", productId).maybeSingle();
+      if (productError) throw productError;
+      if (!product) return json({ errorMessage: "Product not found. Save the product before uploading files." }, 404);
       const files: { file: string; sha: string; size: number }[] = [];
       let totalBytes = 0;
+
+      // ZIPs need bounded extraction and path/symlink validation. Until that is
+      // available, reject the entire request before uploading any Vercel blobs.
+      for (const [key, value] of form.entries()) {
+        if (key !== "files" || typeof value === "string") continue;
+        const file = value as File;
+        const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+        if (/\.zip$/i.test(file.name) || /^(application\/(zip|x-zip-compressed)|multipart\/x-zip)$/i.test(file.type) ||
+          (header[0] === 0x50 && header[1] === 0x4b &&
+            ((header[2] === 3 && header[3] === 4) || (header[2] === 5 && header[3] === 6) || (header[2] === 7 && header[3] === 8)))) {
+          return json({ errorMessage: "ZIP archives are not supported. Extract the archive locally and upload its files." }, 400);
+        }
+      }
 
       for (const [key, value] of form.entries()) {
         if (key !== "files" || typeof value === "string") continue;
@@ -100,13 +131,15 @@ Deno.serve(async (req: Request) => {
         });
 
         if (!uploadRes.ok && uploadRes.status !== 409) {
-          const errText = await uploadRes.text();
-          console.error(`Failed uploading ${norm} to Vercel:`, errText);
+          console.error(`Failed uploading ${norm} to Vercel:`, await uploadRes.text());
+          return json({ errorMessage: `Vercel rejected file ${norm}. Upload was not saved.` }, 502);
         }
 
         files.push({ file: norm, sha, size: buf.byteLength });
         totalBytes += buf.byteLength;
       }
+
+      if (!files.length) return json({ errorMessage: "No deployable project files were uploaded." }, 400);
 
       // Strip common root if all files are inside a single folder
       let finalFiles = files;
@@ -121,7 +154,7 @@ Deno.serve(async (req: Request) => {
 
       const uploadId = `up_${crypto.randomUUID()}`;
       // Persist in Supabase `projects` table
-      await supabase.from("projects").upsert({
+      const { error: persistError } = await supabase.from("projects").upsert({
         product_id: productId,
         data: {
           uploadId,
@@ -131,6 +164,10 @@ Deno.serve(async (req: Request) => {
           updatedAt: new Date().toISOString(),
         },
       });
+      if (persistError) {
+        console.error("Failed to persist project upload:", persistError);
+        return json({ errorMessage: "Could not persist project upload. Retry after saving the product." }, 500);
+      }
 
       return json({
         uploadId,
@@ -165,11 +202,12 @@ Deno.serve(async (req: Request) => {
       const projectId = decodeURIComponent(deployMatch[1]);
       const config = await req.json();
 
-      const { data: row } = await supabase
+      const { data: row, error: readError } = await supabase
         .from("projects")
         .select("data")
         .eq("product_id", projectId)
         .maybeSingle();
+      if (readError) throw readError;
 
       const projectData = row?.data || {};
       const files = projectData.files || [];
@@ -233,7 +271,7 @@ Deno.serve(async (req: Request) => {
         console.error("Failed to disable Vercel deployment protection:", err);
       }
 
-      await supabase.from("projects").upsert({
+      const { error: deployPersistError } = await supabase.from("projects").upsert({
         product_id: projectId,
         data: {
           ...projectData,
@@ -247,6 +285,7 @@ Deno.serve(async (req: Request) => {
           updatedAt: new Date().toISOString(),
         },
       });
+      if (deployPersistError) throw deployPersistError;
 
       return json({
         projectId,
@@ -316,7 +355,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Update cached state in Supabase
-      await supabase.from("projects").upsert({
+      const { error: pollPersistError } = await supabase.from("projects").upsert({
         product_id: projectId,
         data: {
           ...projectData,
@@ -328,6 +367,7 @@ Deno.serve(async (req: Request) => {
           updatedAt: new Date().toISOString(),
         },
       });
+      if (pollPersistError) throw pollPersistError;
 
       return json({
         projectId,

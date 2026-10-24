@@ -56,7 +56,7 @@ describe('public demo selection', () => {
   });
   it('blocks catalog slugs that collide with site routes', () => {
     for (const slug of ['login', 'products', 'admin', 'demo', 'account', 'cart']) {
-      expect(publishReadiness(product({ slug }))).toContain('This slug is reserved by a LABDITS page. Choose another slug.');
+      expect(publishReadiness(product({ slug }))).toContain('Slug ini digunakan halaman LABDITS. Pilih slug lain.');
     }
     expect(publishReadiness(product({ slug: 'dashboardkeren' }))).toEqual([]);
   });

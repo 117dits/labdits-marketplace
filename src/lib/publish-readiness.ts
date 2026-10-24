@@ -4,14 +4,14 @@ import { resolvePublicDemo } from "@/lib/public-demo";
 /** Returns blocking issues; empty array means the product may be published. */
 export function publishReadiness(p: Product): string[] {
   const issues: string[] = [];
-  if (!p.name.trim() || !p.slug.trim()) issues.push("Add a product name and slug.");
+  if (!p.name.trim() || !p.slug.trim()) issues.push("Lengkapi nama dan slug produk.");
   if (new Set(['admin', 'account', 'about', 'cart', 'categories', 'checkout', 'contact', 'demo', 'how-it-works', 'licenses', 'login', 'products', 'support']).has(p.slug.toLowerCase()))
-    issues.push('This slug is reserved by a LABDITS page. Choose another slug.');
-  if (!p.description.trim()) issues.push("Add a product description.");
-  if (!(p.price > 0)) issues.push("Set a personal license price.");
+    issues.push('Slug ini digunakan halaman LABDITS. Pilih slug lain.');
+  if (!p.description.trim()) issues.push("Lengkapi deskripsi produk.");
+  if (!(p.price > 0)) issues.push("Atur harga lisensi personal.");
   if (!resolvePublicDemo(p))
     issues.push(
-      "Add a separate public HTTPS demo URL, or deploy the project to a verified public HTTPS preview before publishing.",
+      "Tambahkan URL demo HTTPS publik yang terpisah, atau deploy proyek hingga pratinjau HTTPS terverifikasi sebelum diterbitkan.",
     );
   return issues;
 }

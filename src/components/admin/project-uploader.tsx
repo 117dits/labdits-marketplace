@@ -46,13 +46,13 @@ export const formatBytes = (n: number) =>
       ? `${(n / 1024).toFixed(1)} KB`
       : `${(n / 1048576).toFixed(1)} MB`;
 export const statusLabel: Record<DeploymentStatus, string> = {
-  pending: "Pending",
-  uploading: "Uploading",
-  analyzing: "Analyzing",
-  building: "Building",
-  deploying: "Deploying",
-  ready: "Ready",
-  failed: "Failed",
+  pending: "Menunggu",
+  uploading: "Mengunggah",
+  analyzing: "Menganalisis",
+  building: "Membangun",
+  deploying: "Menerbitkan",
+  ready: "Siap",
+  failed: "Gagal",
   configuration_required: "Configuration Required",
   backend_required: "Backend Integration Required",
 };
@@ -193,17 +193,32 @@ export function ProjectUploader({
   value,
   onChange,
   onAutoExtracted,
+  onVideoUploaded,
+  onBusyChange,
+  onBeforeUpload,
 }: {
   productId: string;
   value?: ProjectRecord | undefined;
   onChange: (p: ProjectRecord | undefined) => void;
-  onAutoExtracted?: (info: { title?: string; description?: string; thumbnail?: string }) => void;
+  onAutoExtracted?: (info: { title?: string | undefined; description?: string | undefined; thumbnail?: string | undefined; suggestedTags?: string[] | undefined; category?: string | undefined; features?: string[] | undefined }) => void;
+  onVideoUploaded?: (url: string) => void;
+  onBusyChange?: (busy: boolean) => void;
+  onBeforeUpload?: () => Promise<string>;
 }) {
   const fileRef = useRef<HTMLInputElement>(null),
     folderRef = useRef<HTMLInputElement>(null);
   const raw = useRef<File[]>([]);
+  const pendingVideo = useRef<File | null>(null);
+  const pendingMetadata = useRef<{
+    title?: string | undefined; description?: string | undefined; thumbnail?: string | undefined;
+    suggestedTags?: string[] | undefined; category?: string | undefined; features?: string[] | undefined;
+  } | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const generation = useRef(0);
+  const [videoConsent, setVideoConsent] = useState(false);
+  const [hasVideo, setHasVideo] = useState(false);
   const [problems, setProblems] = useState<string[]>([]),
+    [inspecting, setInspecting] = useState(false),
     [progress, setProgress] = useState(0),
     [busy, setBusy] = useState(false),
     [logs, setLogs] = useState<{ timestamp: string; level: string; message: string }[] | null>(null),
@@ -211,7 +226,8 @@ export function ProjectUploader({
   const connected = isDeploymentBackendConnected();
   const latest = useRef(value);
   latest.current = value;
-  const set = (patch: Partial<ProjectRecord>) => {
+  const set = (patch: Partial<ProjectRecord>, selection?: number) => {
+    if (selection !== undefined && generation.current !== selection) return;
     const base = latest.current;
     if (!base) return;
     const next = { ...base, ...patch };
@@ -237,15 +253,31 @@ export function ProjectUploader({
   async function select(list: FileList | null) {
     if (!list?.length) return;
     const files = Array.from(list);
+    const selection = ++generation.current;
+    abort.current?.abort();
+    raw.current = [];
+    pendingVideo.current = null;
+    pendingMetadata.current = null;
+    setHasVideo(false);
+    setVideoConsent(false);
+    setProblems([]);
+    setBusy(false);
+    abort.current = null;
+    onBusyChange?.(true);
+    setInspecting(true);
     setProgress(0);
     const zip = files.length === 1 && files[0]!.name.toLowerCase().endsWith(".zip");
     let entries: InspectableEntry[];
     try {
       entries = zip ? await readZipEntries(files[0]!) : entriesFromFiles(files);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not read archive");
+      if (generation.current !== selection) return;
+      toast.error(e instanceof Error ? e.message : "Arsip tidak dapat dibaca");
+      setInspecting(false);
+      onBusyChange?.(false);
       return;
     }
+    if (generation.current !== selection) return;
     const res = inspectEntries(entries);
     setProblems(res.problems);
     raw.current = files;
@@ -257,11 +289,28 @@ export function ProjectUploader({
     };
     latest.current = base;
     onChange(base);
-    if (res.problems.length) return;
-    const analysis = await analyzeProject(
-      res.entries,
-      res.root || files[0]!.name.replace(/\.zip$/i, ""),
-    );
+    if (res.problems.length) { setInspecting(false); onBusyChange?.(false); return; }
+    // Keep the actual supplied video pending until the project upload succeeds.
+    const { discoverPreviewVideo } = await import('@/lib/preview-video');
+    const video = zip ? null : await discoverPreviewVideo(files);
+    if (generation.current !== selection) return;
+    pendingVideo.current = video;
+    setHasVideo(Boolean(video));
+    // Inspection is local; remote analysis and optional video upload remain separate.
+    let analysis;
+    try {
+      analysis = await analyzeProject(
+        res.entries,
+        res.root || files[0]!.name.replace(/\.zip$/i, ""),
+      );
+    } catch (error) {
+      if (generation.current !== selection) return;
+      set({ localStatus: "failed", localMessage: error instanceof Error ? error.message : "Analisis proyek gagal" }, selection);
+      setInspecting(false);
+      onBusyChange?.(false);
+      return;
+    }
+    if (generation.current !== selection) return;
     set({
       analysis,
       buildConfig: {
@@ -272,67 +321,109 @@ export function ProjectUploader({
         envNotes: analysis.envKeys.join(", "),
       },
       localStatus: analysis.compatibility === "supported" ? "pending" : "configuration_required",
-    });
+    }, selection);
 
     if (onAutoExtracted) {
       try {
         const { extractProjectMetadata } = await import("@/lib/project-meta-extractor");
-        const extracted = await extractProjectMetadata(files);
+        const extracted = await extractProjectMetadata(files, entries);
+        if (generation.current !== selection) return;
         if (extracted.title || extracted.description || extracted.thumbnailUrl) {
-          onAutoExtracted({
+          // Read files without executing them, but populate the listing only after
+          // the backend confirms that the project upload succeeded.
+          pendingMetadata.current = {
             title: extracted.title,
             description: extracted.description,
             thumbnail: extracted.thumbnailUrl,
-          });
-          toast.success("Informasi & thumbnail project terdeteksi otomatis.");
+            suggestedTags: extracted.suggestedTags,
+            category: extracted.category,
+            features: extracted.features,
+          };
         }
       } catch {
-        // non-blocking
+        if (generation.current !== selection) return;
+        toast.error("Informasi proyek tidak dapat dianalisis. Isi manual setelah unggah selesai.");
       }
     }
+    if (generation.current !== selection) return;
+    setInspecting(false);
+    onBusyChange?.(false);
   }
 
   async function upload() {
-    if (!value) return;
+    if (!value || inspecting) return;
     if (!raw.current.length) {
       toast.error("Select the project files again to upload them.");
       return;
     }
-    abort.current = new AbortController();
+    const selection = generation.current;
+    const files = raw.current;
+    const metadata = pendingMetadata.current;
+    const video = videoConsent ? pendingVideo.current : null;
+    const controller = new AbortController();
+    abort.current = controller;
     setBusy(true);
+    onBusyChange?.(true);
     setProgress(0);
-    set({ localStatus: "uploading", localMessage: undefined });
+    set({ localStatus: "uploading", localMessage: undefined }, selection);
     try {
+      const persistedProductId = onBeforeUpload ? await onBeforeUpload() : productId;
+      if (generation.current !== selection) return;
       const r = await deploymentService.upload(
-        raw.current,
-        { productId, sourceType: value.sourceType, files: value.files },
-        setProgress,
-        abort.current.signal,
+        files,
+        { productId: persistedProductId, sourceType: value.sourceType, files: value.files },
+        (progress) => { if (generation.current === selection) setProgress(progress); },
+        controller.signal,
       );
-      set({ projectId: r.projectId, uploadId: r.uploadId, localStatus: "analyzing" });
+      if (generation.current !== selection) return;
+      set({ projectId: r.projectId, uploadId: r.uploadId, localStatus: "analyzing" }, selection);
       if (value.analysis) {
         const a = await deploymentService.analyze(r.projectId, value.analysis);
+        if (generation.current !== selection) return;
         set({
           analysis: a.analysis,
           localStatus:
             a.analysis.compatibility === "supported" ? "pending" : "configuration_required",
-        });
+        }, selection);
+      } else {
+        set({ localStatus: "pending" }, selection);
       }
-      toast.success("Project uploaded to storage");
+      if (metadata && onAutoExtracted) {
+        onAutoExtracted(metadata);
+        toast.success("Informasi aplikasi berhasil diisi otomatis. Tinjau sebelum diterbitkan.");
+      }
+      if (video && onVideoUploaded) {
+        try {
+          const { uploadPreviewVideo } = await import('@/lib/preview-video');
+          if (generation.current !== selection) return;
+          const url = await uploadPreviewVideo(video, r.projectId);
+          if (generation.current !== selection) return;
+          onVideoUploaded(url);
+          toast.success('Video pratinjau asli tersimpan.');
+        } catch (videoError) {
+          if (generation.current !== selection) return;
+          toast.error(`Video pratinjau belum tersimpan: ${videoError instanceof Error ? videoError.message : 'kesalahan unggahan'}`);
+        }
+      }
+      if (generation.current === selection) toast.success("Proyek berhasil diunggah.");
     } catch (e) {
+      if (generation.current !== selection) return;
       if (e instanceof DOMException && e.name === "AbortError") {
-        set({ localStatus: "pending", localMessage: "Upload cancelled." });
+        set({ localStatus: "pending", localMessage: "Upload cancelled." }, selection);
         toast.info("Upload cancelled");
       } else if (e instanceof BackendNotConnectedError)
-        set({ localStatus: "backend_required", localMessage: e.message });
+        set({ localStatus: "backend_required", localMessage: e.message }, selection);
       else
         set({
           localStatus: "failed",
           localMessage: e instanceof Error ? e.message : "Upload failed",
-        });
+        }, selection);
     } finally {
-      setBusy(false);
-      abort.current = null;
+      if (generation.current === selection) {
+        setBusy(false);
+        onBusyChange?.(false);
+        if (abort.current === controller) abort.current = null;
+      }
     }
   }
 
@@ -455,8 +546,19 @@ export function ProjectUploader({
               variant="ghost"
               size="sm"
               onClick={() => {
+                ++generation.current;
+                abort.current?.abort();
+                abort.current = null;
                 raw.current = [];
+                pendingVideo.current = null;
+                pendingMetadata.current = null;
+                setHasVideo(false);
+                setVideoConsent(false);
+                setInspecting(false);
+                setBusy(false);
+                onBusyChange?.(false);
                 setProblems([]);
+                latest.current = undefined;
                 onChange(undefined);
               }}
             >
@@ -550,9 +652,15 @@ export function ProjectUploader({
               </div>
             </div>
           )}
+          {hasVideo && !value.uploadId && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" checked={videoConsent} onChange={(event) => setVideoConsent(event.target.checked)} />
+              I consent to uploading the detected preview video. Its URL becomes public, including before publication.
+            </label>
+          )}
           <div className="flex flex-wrap gap-2">
             {!value.uploadId && (
-              <Button type="button" disabled={busy || !!problems.length} onClick={upload}>
+              <Button type="button" disabled={busy || inspecting || !!problems.length} onClick={upload}>
                 <Upload />
                 {value.localStatus === "failed" || value.localStatus === "backend_required"
                   ? "Retry upload"

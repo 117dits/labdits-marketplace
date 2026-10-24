@@ -6,6 +6,7 @@ import type { Json } from '@/integrations/supabase/types';
 // The browser uses only the publishable client. Authorization is enforced by RLS;
 // this extra check prevents misleading optimistic edits before the server denies them.
 export function createCatalogService(client: typeof supabase = supabase) {
+  const loadedVideos = new Map<string, string | undefined>();
   async function requireAdmin() {
     const { data: { user }, error } = await client.auth.getUser();
     if (error) throw error;
@@ -20,6 +21,8 @@ export function createCatalogService(client: typeof supabase = supabase) {
       if (error) throw error;
       return (data ?? []).map(row => {
         const details = row.data as Partial<Product> & { image?: string };
+        // Keep the first snapshot: an open editor retains that baseline across refreshes.
+        if (!loadedVideos.has(row.id)) loadedVideos.set(row.id, details.previewVideoUrl);
         const image = details.image?.startsWith('seed:') ? seedProducts.find(p => p.id === row.id)?.image : details.image;
         return { ...details, id: row.id, slug: row.slug, name: row.name, status: row.status, image } as Product;
       });
@@ -31,9 +34,34 @@ export function createCatalogService(client: typeof supabase = supabase) {
     },
     async saveProduct(product: Product) {
       await requireAdmin();
-      const { id, slug, name, status, ...data } = product;
-      const result = await client.from('products').upsert({ id, slug, name, status, data: JSON.parse(JSON.stringify(data)) as Json });
-      if (result.error) throw result.error;
+      const { id, slug, name, status, ...details } = product;
+      const data = JSON.parse(JSON.stringify(details)) as Record<string, Json>;
+      const loaded = loadedVideos.has(id);
+      const videoChanged = loaded && product.previewVideoUrl !== loadedVideos.get(id);
+      if (!loaded) {
+        const result = await client.from('products').insert({ id, slug, name, status, data });
+        if (result.error) throw result.error;
+        loadedVideos.set(id, product.previewVideoUrl);
+        return;
+      }
+      // A stale editor snapshot must not erase the worker's later video. Compare the
+      // entire JSON document so a worker patch between read and update is detectable.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: row, error } = await client.from('products').select('data').eq('id', id).maybeSingle();
+        if (error) throw error;
+        if (!row) throw new Error('Product was deleted; reload before saving');
+        const current = row.data as Record<string, Json>;
+        const next = { ...data };
+        if (!videoChanged) {
+          if (current['previewVideoUrl'] === undefined) delete next['previewVideoUrl'];
+          else next['previewVideoUrl'] = current['previewVideoUrl'];
+        }
+        const result = await client.from('products').update({ slug, name, status, data: next })
+          .eq('id', id).filter('data', 'eq', JSON.stringify(row.data)).select('id');
+        if (result.error) throw result.error;
+        if (result.data?.length) return;
+      }
+      throw new Error('Product changed while saving; reload and retry');
     },
     async deleteProduct(id: string) {
       await requireAdmin();
