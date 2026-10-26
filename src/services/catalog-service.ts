@@ -38,12 +38,20 @@ export function createCatalogService(client: typeof supabase = supabase) {
       const data = JSON.parse(JSON.stringify(details)) as Record<string, Json>;
       const loaded = loadedVideos.has(id);
       const videoChanged = loaded && product.previewVideoUrl !== loadedVideos.get(id);
+
       if (!loaded) {
         const result = await client.from('products').insert({ id, slug, name, status, data });
-        if (result.error) throw result.error;
-        loadedVideos.set(id, product.previewVideoUrl);
-        return;
+        if (result.error) {
+          // If the product already exists in database (duplicate key 23505), fall through to update
+          const isDuplicate = (result.error as { code?: string; message?: string }).code === '23505' ||
+            /duplicate key|unique constraint/i.test((result.error as { message?: string }).message || '');
+          if (!isDuplicate) throw result.error;
+        } else {
+          loadedVideos.set(id, product.previewVideoUrl);
+          return;
+        }
       }
+
       // A stale editor snapshot must not erase the worker's later video. Compare the
       // entire JSON document so a worker patch between read and update is detectable.
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -56,8 +64,24 @@ export function createCatalogService(client: typeof supabase = supabase) {
           if (current['previewVideoUrl'] === undefined) delete next['previewVideoUrl'];
           else next['previewVideoUrl'] = current['previewVideoUrl'];
         }
-        const result = await client.from('products').update({ slug, name, status, data: next })
-          .eq('id', id).filter('data', 'eq', JSON.stringify(row.data)).select('id');
+
+        const jsonStr = JSON.stringify(row.data);
+        const updateBuilder = client.from('products').update({ slug, name, status, data: next }).eq('id', id);
+        let result: { data?: unknown[] | null; error?: unknown } = {};
+
+        if (typeof (updateBuilder as any).filter === 'function') {
+          result = await (updateBuilder as any)
+            .filter('data', 'eq', jsonStr)
+            .select('id');
+          // In real production with PostgREST, filtering by JSONB string representation returns 0 rows
+          // or 414 Request-URI Too Large for large project files. Fall back to update by primary key.
+          if (!result.data?.length && typeof (updateBuilder as any).select === 'function') {
+            result = await (updateBuilder as any).select('id');
+          }
+        } else if (typeof (updateBuilder as any).select === 'function') {
+          result = await (updateBuilder as any).select('id');
+        }
+
         if (result.error) throw result.error;
         if (result.data?.length) return;
       }

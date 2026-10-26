@@ -197,6 +197,11 @@ export function ProductWizard({ id }: { id?: string }) {
       persistedDraftId.current = id;
       setDraft((current) => ({ ...current, id }));
       return id;
+    }).catch((err) => {
+      console.warn("Could not persist draft to database, continuing with local ID:", err);
+      persistedDraftId.current = id;
+      setDraft((current) => ({ ...current, id }));
+      return id;
     });
     pendingDraftSave.current = pending;
     try { return await pending; }
@@ -367,7 +372,8 @@ export function ProductWizard({ id }: { id?: string }) {
     event.preventDefault();
     if (saving) return;
     if (step < 4) {
-      if (step === 1 && (uploaderBusy || !draft.project?.uploadId || !draft.project?.projectId || draft.project.localStatus === "uploading" || draft.project.localStatus === "analyzing")) {
+      const hasExistingFiles = Boolean(existing || (draft.files && draft.files.length > 0) || (draft.project?.uploadId && draft.project?.projectId));
+      if (step === 1 && !hasExistingFiles && (uploaderBusy || !draft.project?.uploadId || !draft.project?.projectId || draft.project.localStatus === "uploading" || draft.project.localStatus === "analyzing")) {
         toast.error("Unggah proyek terlebih dahulu hingga seluruh proses selesai.");
         return;
       }
@@ -428,7 +434,9 @@ export function ProductWizard({ id }: { id?: string }) {
       toast.error(readinessIssues[0]);
       return;
     }
-    if (store.products.some((product) => product.slug === draft.slug && product.id !== draft.id)) {
+    const targetSlug = (cleanSlug || draft.slug || '').trim().toLowerCase();
+    const currentId = draft.id || finalDraft.id;
+    if (store.products.some((product) => product.slug.toLowerCase() === targetSlug && product.id !== currentId)) {
       toast.error("Slug ini sudah digunakan produk lain.");
       setStep(0);
       return;

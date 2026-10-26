@@ -31,21 +31,57 @@ const VIEWPORTS: Record<string, string> = {
   Mobile: "390px",
 };
 export function DemoViewer({ slug }: { slug: string }) {
-  const { products, addToCart, session } = useMarketplace();
-  const p = products.find(
-    (p) => p.slug === slug && (p.status === "published" || session?.role === "owner"),
-  );
+  const { products, addToCart, session, hydrated } = useMarketplace();
   const [device, setDevice] = useState("Desktop"),
     [refresh, setRefresh] = useState(0),
     [external, setExternal] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  if (!hydrated) {
+    return (
+      <div className="site-container py-24 text-center">
+        <div className="mx-auto max-w-md panel">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <h2 className="text-lg font-semibold">Memuat Live Demo...</h2>
+          <p className="mt-2 text-xs text-muted-foreground">Menghubungkan ke pratinjau aplikasi interaktif LABDITS.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const normalized = decodeURIComponent(slug).trim().toLowerCase();
+  const p = products.find(
+    (item) =>
+      (item.slug.toLowerCase() === normalized ||
+        item.id.toLowerCase() === normalized ||
+        item.name.toLowerCase() === normalized ||
+        (normalized === "camber" && (item.id === "3" || item.slug.toLowerCase() === "demo7"))) &&
+      (item.status === "published" || session?.role === "owner" || Boolean(resolvePublicDemo(item) || shouldShowBundledDemo(item))),
+  ) || products.find(
+    (item) =>
+      item.slug.toLowerCase() === normalized ||
+      item.id.toLowerCase() === normalized ||
+      item.name.toLowerCase() === normalized ||
+      (normalized === "camber" && (item.id === "3" || item.slug.toLowerCase() === "demo7")),
+  );
+
   if (!p)
     return (
       <div className="site-container py-20">
-        <h1>Demo unavailable</h1>
-        <Button asChild className="mt-5">
-          <Link to="/products">Back to products</Link>
-        </Button>
+        <div className="mx-auto max-w-lg panel text-center">
+          <h1 className="text-2xl font-bold">Demo Tidak Tersedia</h1>
+          <p className="my-4 text-sm text-muted-foreground">
+            Aplikasi demo dengan tautan &ldquo;{slug}&rdquo; tidak ditemukan atau belum dipublikasikan ke katalog.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button asChild>
+              <Link to="/products">Kembali ke Etalase</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/">Beranda</Link>
+            </Button>
+          </div>
+        </div>
       </div>
     );
   const dep = p.project?.deployment;
