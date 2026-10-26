@@ -2,7 +2,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test capture-preview.test.mjs preview-worker.test.mjs",
+    "test": "node --test capture-preview.test.mjs preview-worker.test.mjs render-hyperframes-preview.test.mjs",
+    "preview:hyperframes": "node render-hyperframes-preview.mjs",
     "preview:once": "node preview-worker.mjs --once",
     "preview:watch": "node preview-worker.mjs --watch"
   },

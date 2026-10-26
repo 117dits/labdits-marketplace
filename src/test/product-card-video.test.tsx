@@ -40,4 +40,12 @@ describe('product hover video', () => {
     const video = link.querySelector('video')!;
     expect(video.getAttribute('src')).toBe('blob:http://localhost/generated-preview-video');
   });
+  it('supports local relative preview video paths', async () => {
+    show('/previews/coffer-demo.mp4');
+    const image = await screen.findByRole('img', { name: /Produk/i });
+    const link = image.closest('a')!;
+    fireEvent.mouseEnter(link);
+    const video = link.querySelector('video')!;
+    expect(video.getAttribute('src')).toBe('/previews/coffer-demo.mp4');
+  });
 });

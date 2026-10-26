@@ -16,8 +16,12 @@ export function ProductCard({product:p}:{product:Product}) {
  let url: string | undefined;
  try {
   if (p.previewVideoUrl) {
-    const parsed = new URL(p.previewVideoUrl);
-    if (parsed.protocol === 'https:' || parsed.protocol === 'blob:') url = p.previewVideoUrl;
+    if (p.previewVideoUrl.startsWith('/') && !p.previewVideoUrl.startsWith('//')) {
+      url = p.previewVideoUrl;
+    } else {
+      const parsed = new URL(p.previewVideoUrl);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'blob:') url = p.previewVideoUrl;
+    }
   }
  } catch { /* invalid URL */ }
  const stop=()=>{ video.current?.pause(); setActive(false); };

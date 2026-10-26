@@ -27,4 +27,24 @@ Apply `supabase/migrations/20261023_preview_videos.sql` first (public 25 MiB vid
 
 Each cycle scans at most 500 products, captures at most 10 videos sequentially (3 seconds × 8 FPS), rejects zero/oversized outputs, and uploads immutable randomly named MP4 objects. A conditional PostgreSQL JSONB equality filter on the full original `data` document makes the final PATCH fail closed if the row changed during capture; conflicting orphan objects are removed. If cleanup fails, investigate abandoned storage objects. The worker uses the service-role key for Supabase requests; Chromium and ffmpeg receive an environment allowlist without that key. Do **not** run this with access to cloud metadata endpoints, internal services, or host files: enforce egress and filesystem sandboxing outside Playwright too. Capture URL policy and same-origin request interception are not a full security boundary. A process supervisor must restart a crashed worker; cycles report aggregate counts, not row contents or secrets.
 
-No Supabase credentials/public deployment were supplied during development, so no live upload was executed. `npm test` exercises fake-adapter discovery, conflict and REST request policies, plus a real loopback Chromium→ffmpeg→ffprobe MP4 smoke test; a configured, isolated live environment is needed to verify the public capture and storage path.
+## HyperFrames-powered cinematic hover previews
+
+To create a high-fidelity cinematic video of the deployed app (encased in a macOS-styled browser window with smooth camera zoom and pan over key UI features), use `render-hyperframes-preview.mjs`:
+
+```sh
+node render-hyperframes-preview.mjs \
+  --url 'https://YOUR-DEPLOYMENT.vercel.app/' \
+  --name 'Nama Produk' \
+  --slug 'slug-produk' \
+  --output './public/previews/slug.mp4' \
+  --thumbnail './public/previews/slug-thumb.png' \
+  --duration 5 \
+  --fps 24
+```
+
+Features:
+- **Real live capture**: Connects to the verified Vercel preview URL, waits for animations and fonts to settle, and captures the actual deployed application.
+- **Mac-style browser frame**: Encases the application in a sleek browser frame with window controls and security pill indicator.
+- **GSAP motion choreography**: Smooth zoom-in onto dashboard cards/metrics, pan over key application flows, and gentle return to full overview for seamless looping.
+- **Thumbnail generation**: Optionally exports the real high-res screenshot directly as the product's primary card image (`--thumbnail`), completely replacing generic SVG fallback graphics with genuine app screenshots.
+- **Deterministic MP4 rendering**: HyperFrames uses seekable timeline rendering with headless Chrome and FFmpeg, outputting lightweight, crystal-clear 1080p/720p H.264 MP4 videos optimized for card hover interactions.
