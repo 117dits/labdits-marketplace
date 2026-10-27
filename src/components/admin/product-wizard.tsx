@@ -280,7 +280,7 @@ export function ProductWizard({ id }: { id?: string }) {
       selected.length > 1;
 
     if (!isZip && !isFolder) {
-      toast.error("Drop a ZIP archive or choose a complete project folder.");
+      toast.error("Unggah arsip ZIP atau pilih folder proyek lengkap.");
       return;
     }
 
@@ -299,7 +299,7 @@ export function ProductWizard({ id }: { id?: string }) {
     if (nextFiles.some((file) => !file.valid)) {
       setUploadStatus("idle");
       setProgress(0);
-      toast.error("Some files could not be inspected.");
+      toast.error("Beberapa file tidak dapat diperiksa.");
       return;
     }
 
@@ -320,7 +320,7 @@ export function ProductWizard({ id }: { id?: string }) {
       !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
       file.size > 5 * 1024 * 1024
     ) {
-      toast.error("Choose a JPG, PNG, or WebP smaller than 5 MB.");
+      toast.error("Pilih file JPG, PNG, atau WebP di bawah 5 MB.");
       return;
     }
     const reader = new FileReader();
@@ -328,7 +328,7 @@ export function ProductWizard({ id }: { id?: string }) {
       if (typeof reader.result === "string") update("image", reader.result);
     };
     reader.readAsDataURL(file);
-    toast.success("Thumbnail preview updated.");
+    toast.success("Thumbnail pratinjau diperbarui.");
   }
 
   function thumbnail(event: ChangeEvent<HTMLInputElement>) {
@@ -707,7 +707,7 @@ export function ProductWizard({ id }: { id?: string }) {
                       ? "Release to inspect your project."
                       : "Drag & drop your project here."}
                   </h3>
-                  <p>ZIP archive or complete project folder · No per-file size limit</p>
+                  <p>Arsip ZIP atau folder proyek lengkap · Tanpa batas ukuran per file dari aplikasi</p>
                   <div className="flex flex-wrap justify-center gap-3">
                     <Button type="button" onClick={() => fileRef.current?.click()}>
                       <FileArchive />
@@ -900,7 +900,7 @@ export function ProductWizard({ id }: { id?: string }) {
               {draft.project?.uploadId && (
                 <div className="notice">
                   <Info /> Upload tersimpan. Alamat katalog demo: <code>/{draft.slug}</code>.
-                  Upload saja belum membuat demo live: deploy project dan tunggu health check
+                  Unggahan belum membuat demo tayang: deploy proyek dan tunggu pemeriksaan kesehatan
                   berhasil sebelum publish. Source tetap dilayani dari origin preview terpisah.
                 </div>
               )}

@@ -63,7 +63,7 @@ export function AdminHeading({
         <Button asChild size="sm">
           <Link to="/admin/products/new">
             <Plus />
-            New product
+            Tambah produk
           </Link>
         </Button>
       )}
@@ -86,28 +86,28 @@ export function Metrics() {
     >
       {[
         {
-          label: "Total revenue",
+          label: "Total pendapatan",
           value: money(revenue),
           icon: Banknote,
-          change: "+24.8% vs. last month",
+          change: "+24.8% vs. bulan lalu",
         },
         {
-          label: "Products",
+          label: "Jumlah produk",
           value: products.length,
           icon: Package,
-          change: `${products.filter((p) => p.status === "published").length} published products`,
+          change: `${products.filter((p) => p.status === "published").length} produk aktif tayang`,
         },
         {
-          label: "Total orders",
+          label: "Total pesanan",
           value: orders.length,
           icon: ShoppingBag,
-          change: "+18.2% vs. last month",
+          change: "+18.2% vs. bulan lalu",
         },
         {
           label: "Total Pelanggan",
           value: new Set(orders.map((o) => o.customer.email)).size,
           icon: Users,
-          change: "Growing your community",
+          change: "Basis pelanggan bertumbuh",
         },
       ].map(({ label, value, icon: Icon, change }) => (
         <motion.div
@@ -218,10 +218,10 @@ export function AdminOverview() {
   const { products, orders } = useMarketplace();
   const reduced = useReducedMotion();
   return (
-    <DashboardLayout owner title="Overview">
+    <DashboardLayout owner title="Ringkasan">
       <AdminHeading
-        title="Let's build something great."
-        description="Your products, your business, your next chapter."
+        title="Wujudkan Karya Digital Terbaik."
+        description="Pantau produk, bisnis, dan analitik penjualan marketplace Anda."
         action
       />
       <Metrics />
@@ -233,7 +233,7 @@ export function AdminOverview() {
       >
         <RevenueChart />
         <motion.div className="panel" whileHover={reduced ? {} : { y: -3 }}>
-          <h2>Top selling products</h2>
+          <h2>Produk Terlaris</h2>
           {products
             .slice()
             .sort((a, b) => b.popularity - a.popularity)
@@ -261,7 +261,7 @@ export function AdminOverview() {
               </motion.div>
             ))}
           <div className="summary-row mt-6">
-            <span>Conversion rate</span>
+            <span>Tingkat konversi</span>
             <strong className="text-success">4.8%</strong>
           </div>
         </motion.div>
@@ -273,10 +273,10 @@ export function AdminOverview() {
         transition={{ duration: 0.45, delay: 0.22 }}
       >
         <div className="mb-4 flex justify-between">
-          <h2>Recent transactions</h2>
+          <h2>Transaksi Terbaru</h2>
           <Button variant="link" size="sm" asChild>
             <Link to="/admin/orders">
-              All orders
+              Semua pesanan
               <ArrowUpRight />
             </Link>
           </Button>
@@ -297,10 +297,10 @@ export function AdminProducts() {
       (status === "all" || p.status === status || (status === "featured" && p.featured)),
   );
   return (
-    <DashboardLayout owner title="Products">
+    <DashboardLayout owner title="Produk">
       <AdminHeading
-        title="Your collection."
-        description="Curate, refine, and publish your digital products."
+        title="Koleksi Produk Anda."
+        description="Kelola, sesuaikan, dan terbitkan produk digital Anda."
         action
       />
       <div className="market-toolbar">
@@ -310,20 +310,20 @@ export function AdminProducts() {
             className="form-input"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products..."
-            aria-label="Search admin products"
+            placeholder="Cari produk..."
+            aria-label="Cari produk admin"
           />
         </div>
         <select
           className="form-input"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          aria-label="Product status"
+          aria-label="Status produk"
         >
-          <option value="all">All products</option>
-          <option value="published">Published</option>
-          <option value="draft">Drafts</option>
-          <option value="featured">Featured</option>
+          <option value="all">Semua produk</option>
+          <option value="published">Tayang</option>
+          <option value="draft">Draf</option>
+          <option value="featured">Unggulan</option>
         </select>
       </div>
       <div className="panel p-0">
@@ -331,17 +331,17 @@ export function AdminProducts() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Category</th>
-                <th>Price</th>
+                <th>Produk</th>
+                <th>Kategori</th>
+                <th>Harga</th>
                 <th>Framework</th>
-                <th>Build status</th>
+                <th>Status Build</th>
                 <th>Demo</th>
-                <th>Preview URL</th>
-                <th>Last deployment</th>
+                <th>URL Pratinjau</th>
+                <th>Deployment Terakhir</th>
                 <th>Status</th>
-                <th>Featured</th>
-                <th>Actions</th>
+                <th>Unggulan</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -372,10 +372,10 @@ export function AdminProducts() {
                     <input
                       type="checkbox"
                       checked={p.featured}
-                      aria-label={`Feature ${p.name}`}
+                      aria-label={`Tandai ${p.name} sebagai unggulan`}
                       onChange={() => {
                         store.saveProduct({ ...p, featured: !p.featured });
-                        toast.success("Featured status updated");
+                        toast.success("Status unggulan diperbarui");
                       }}
                     />
                   </td>
@@ -394,8 +394,8 @@ export function AdminProducts() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={`${p.status === "published" ? "Unpublish" : "Publish"} ${p.name}`}
-                        title={p.status === "published" ? "Unpublish" : "Publish"}
+                        aria-label={`${p.status === "published" ? "Tarik dari etalase" : "Terbitkan"} ${p.name}`}
+                        title={p.status === "published" ? "Tarik dari etalase" : "Terbitkan"}
                         onClick={() => {
                           if (p.status !== "published") {
                             const issues = publishReadiness(p);
@@ -408,7 +408,7 @@ export function AdminProducts() {
                             ...p,
                             status: p.status === "published" ? "draft" : "published",
                           });
-                          toast.success("Publication status updated");
+                          toast.success("Status publikasi produk diperbarui");
                         }}
                       >
                         {p.status === "published" ? <Eye /> : <EyeOff />}
@@ -417,8 +417,8 @@ export function AdminProducts() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={`Delete ${p.name}`}
-                        title="Delete"
+                        aria-label={`Hapus ${p.name}`}
+                        title="Hapus"
                         onClick={() => setDeleting(p)}
                       >
                         <Trash2 className="text-destructive" />
@@ -433,10 +433,10 @@ export function AdminProducts() {
         {!products.length && (
           <div className="empty-state m-5">
             <Package />
-            <h2>No products found.</h2>
-            <p>Try another search or create your first product.</p>
+            <h2>Tidak ada produk ditemukan.</h2>
+            <p>Coba kata kunci lain atau tambahkan produk baru pertama Anda.</p>
             <Button asChild>
-              <Link to="/admin/products/new">New product</Link>
+              <Link to="/admin/products/new">Tambah produk</Link>
             </Button>
           </div>
         )}
@@ -460,33 +460,32 @@ export function AdminProducts() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-header">
-                <h2 id="delete-title">Delete {deleting.name}?</h2>
+                <h2 id="delete-title">Hapus {deleting.name}?</h2>
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Close dialog"
+                  aria-label="Tutup dialog"
                   onClick={() => setDeleting(null)}
                 >
                   <X />
                 </Button>
               </div>
               <p className="text-sm leading-7 text-muted-foreground">
-                This removes the product from your frontend collection and cart. Existing demo
-                orders are retained.
+                Tindakan ini akan menghapus produk dari koleksi etalase dan keranjang pelanggan. Riwayat pesanan demo yang sudah tercatat akan tetap dipertahankan.
               </p>
               <div className="mt-6 flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setDeleting(null)}>
-                  Cancel
+                  Batal
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={() => {
                     store.deleteProduct(deleting.id);
                     setDeleting(null);
-                    toast.success("Product deleted");
+                    toast.success("Produk berhasil dihapus");
                   }}
                 >
-                  Delete product
+                  Hapus produk
                 </Button>
               </div>
             </motion.div>
@@ -525,7 +524,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
                 <td>
                   {o.items
                     .map(
-                      (i) => products.find((p) => p.id === i.productId)?.name || "Archived product",
+                      (i) => products.find((p) => p.id === i.productId)?.name || "Produk diarsipkan",
                     )
                     .join(", ")}
                 </td>
@@ -542,7 +541,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={`View order ${o.id}`}
+                    aria-label={`Lihat pesanan ${o.id}`}
                     onClick={() => setSelected(o)}
                   >
                     <ArrowUpRight />
@@ -554,7 +553,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
         </table>
         {!orders.length && (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            No orders match this view.
+            Tidak ada pesanan yang sesuai.
           </p>
         )}
       </div>
@@ -571,17 +570,17 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
               className="modal"
               role="dialog"
               aria-modal="true"
-              aria-label="Order details"
+              aria-label="Rincian pesanan"
               initial={{ x: 25 }}
               animate={{ x: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-header">
-                <h2>Order {selected.id}</h2>
+                <h2>Pesanan {selected.id}</h2>
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Close order"
+                  aria-label="Tutup rincian pesanan"
                   onClick={() => setSelected(null)}
                 >
                   <X />
@@ -593,7 +592,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
                 {selected.status}
               </span>
               <div className="summary-row">
-                <span>Customer</span>
+                <span>Pelanggan</span>
                 <span>{selected.customer.name}</span>
               </div>
               <div className="summary-row">
@@ -602,20 +601,20 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
               </div>
               <div className="summary-row">
                 <span>WhatsApp</span>
-                <span>{selected.customer.whatsapp || "Not provided"}</span>
+                <span>{selected.customer.whatsapp || "Tidak tersedia"}</span>
               </div>
               <div className="summary-row">
-                <span>Method</span>
+                <span>Metode</span>
                 <span>{selected.paymentMethod}</span>
               </div>
               <div className="summary-row">
-                <span>Date</span>
+                <span>Tanggal</span>
                 <span>{selected.date}</span>
               </div>
               {selected.items.map((i, n) => (
                 <div className="summary-row" key={n}>
                   <span>
-                    {products.find((p) => p.id === i.productId)?.name || "Archived product"}
+                    {products.find((p) => p.id === i.productId)?.name || "Produk diarsipkan"}
                   </span>
                   <span>{licenseNames[i.license]}</span>
                 </div>
@@ -626,7 +625,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
               </div>
               <div className="notice mt-5">
                 <Info />
-                Simulated order. No real payment or license verification.
+                Pesanan simulasi. Pembayaran dan lisensi belum diverifikasi secara nyata.
               </div>
             </motion.section>
           </motion.div>
@@ -650,20 +649,20 @@ export function AdminOrders() {
           <Search />
           <input
             className="form-input"
-            aria-label="Search orders"
-            placeholder="Search orders or customers..."
+            aria-label="Cari pesanan"
+            placeholder="Cari pesanan atau pelanggan..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
         <select
           className="form-input"
-          aria-label="Order payment filter"
+          aria-label="Filter pembayaran pesanan"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
           <option value="all">Semua Pembayaran</option>
-          <option value="Paid">Lunas (Paid)</option>
+          <option value="Paid">Lunas</option>
           <option value="Pending">Menunggu Pembayaran</option>
         </select>
       </div>
@@ -698,8 +697,8 @@ export function AdminCustomers() {
         <Search />
         <input
           className="form-input"
-          placeholder="Search customers..."
-          aria-label="Search customers"
+          placeholder="Cari pelanggan..."
+          aria-label="Cari pelanggan"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -709,9 +708,9 @@ export function AdminCustomers() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Customer</th>
-                <th>Orders</th>
-                <th>Total spent</th>
+                <th>Pelanggan</th>
+                <th>Pesanan</th>
+                <th>Total Belanja</th>
                 <th>Status</th>
                 <th />
               </tr>
@@ -750,7 +749,7 @@ export function AdminCustomers() {
                         <span
                           className={`status ${c.status === "Active" ? "status-positive" : ""}`}
                         >
-                          {c.status}
+                          {c.status === "Active" ? "Aktif" : c.status}
                         </span>
                       </td>
                       <td>
@@ -759,7 +758,7 @@ export function AdminCustomers() {
                           size="sm"
                           onClick={() => setCustomer(customer === c.email ? null : c.email)}
                         >
-                          Purchase history
+                          Riwayat transaksi
                           <ArrowUpRight />
                         </Button>
                       </td>
@@ -773,18 +772,18 @@ export function AdminCustomers() {
           `${c.name} ${c.email}`.toLowerCase().includes(query.toLowerCase()),
         ) && (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            No customers match your search.
+            Tidak ada pelanggan yang sesuai dengan pencarian Anda.
           </p>
         )}
       </div>
       {customer && (
         <div className="panel mt-6">
           <div className="flex items-center justify-between">
-            <h2>Purchase history</h2>
+            <h2>Riwayat transaksi</h2>
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Close history"
+              aria-label="Tutup riwayat transaksi"
               onClick={() => setCustomer(null)}
             >
               <X />
@@ -799,35 +798,35 @@ export function AdminCustomers() {
 export function AdminAnalytics() {
   const [period, setPeriod] = useState("6 months");
   return (
-    <DashboardLayout owner title="Analytics">
+    <DashboardLayout owner title="Analitik">
       <div className="app-heading">
         <AdminHeading
-          title="The bigger picture."
-          description="Discover what resonates. Build on what works."
+          title="Analisis Pasar & Performa."
+          description="Pelajari data ketertarikan pengunjung dan tingkat konversi produk Anda."
         />
         <select
           className="form-input"
-          aria-label="Analytics date range"
+          aria-label="Rentang waktu analitik"
           value={period}
           onChange={(e) => setPeriod(e.target.value)}
         >
-          <option>30 days</option>
-          <option>90 days</option>
-          <option>6 months</option>
+          <option value="30 days">30 hari terakhir</option>
+          <option value="90 days">90 hari terakhir</option>
+          <option value="6 months">6 bulan terakhir</option>
         </select>
       </div>
       <div className="metric-grid">
         {[
           [
-            "Product views",
-            period === "30 days" ? "10,300" : period === "90 days" ? "15,000" : "22,800",
+            "Tayangan produk",
+            period === "30 days" ? "10.300" : period === "90 days" ? "15.000" : "22.800",
           ],
           [
-            "Demo interactions",
-            period === "30 days" ? "1,248" : period === "90 days" ? "3,724" : "6,420",
+            "Interaksi live demo",
+            period === "30 days" ? "1.248" : period === "90 days" ? "3.724" : "6.420",
           ],
-          ["Conversion rate", "4.8%"],
-          ["Avg. order value", "Rp 1.498.000"],
+          ["Tingkat konversi", "4.8%"],
+          ["Rata-rata pesanan", "Rp 1.498.000"],
         ].map(([label, value]) => (
           <div className="panel metric" key={label}>
             <span className="metric-label">
@@ -844,15 +843,15 @@ export function AdminAnalytics() {
         <RevenueChart analytics period={period} />
       </div>
       <div className="panel mt-6">
-        <h2>Top product performance</h2>
+        <h2>Performa Produk Teratas</h2>
         <div className="data-table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Views</th>
-                <th>Demo visits</th>
-                <th>Conversion</th>
+                <th>Produk</th>
+                <th>Kunjungan Halaman</th>
+                <th>Kunjungan Demo</th>
+                <th>Konversi</th>
               </tr>
             </thead>
             <tbody>
@@ -875,9 +874,9 @@ export function AdminAnalytics() {
 }
 export function AdminSettings() {
   const store = useMarketplace();
-  const [tab, setTab] = useState("Store profile");
+  const [tab, setTab] = useState("Profil Toko");
   return (
-    <DashboardLayout owner title="Settings">
+    <DashboardLayout owner title="Pengaturan">
       <AdminHeading
         title="Pengaturan Toko & Preferensi"
         description="Kelola identitas etalase produk dan pengaturan akun admin."
@@ -895,6 +894,7 @@ export function AdminSettings() {
         ))}
       </div>
       <form
+        key={tab}
         className="panel max-w-3xl"
         onSubmit={(e) => {
           e.preventDefault();
@@ -902,17 +902,18 @@ export function AdminSettings() {
           store.saveSettings({
             ...store.settings,
             ...Object.fromEntries(Array.from(data.entries()).map(([k, v]) => [k, String(v)])),
+            ...(tab === "Preferensi" ? { notifications: data.has("notifications") ? "on" : "off" } : {}),
           });
-          toast.success("Demo settings saved in this browser");
+          toast.success("Preferensi pengaturan dikirim untuk disimpan");
         }}
       >
         <h2>{tab}</h2>
-        {tab === "Store profile" ? (
+        {tab === "Profil Toko" ? (
           <div className="form-stack">
             {[
-              ["storeName", "Store name"],
-              ["tagline", "Tagline"],
-              ["email", "Support email"],
+              ["storeName", "Nama Toko / Etalase"],
+              ["tagline", "Tagline / Slogan"],
+              ["email", "Email Bantuan & Dukungan"],
             ].map(([name = "", label]) => (
               <div className="field" key={name}>
                 <label htmlFor={name}>{label}</label>
@@ -925,16 +926,15 @@ export function AdminSettings() {
               </div>
             ))}
           </div>
-        ) : tab === "Brand & social" ? (
+        ) : tab === "Brand & Media Sosial" ? (
           <div className="form-stack">
             <div className="notice">
               <Info />
-              The geometric LABDITS brand is included. Social addresses below are demo preferences,
-              not connected accounts.
+              Identitas geometris LABDITS sudah terintegrasi. Tautan media sosial berikut adalah preferensi etalase, bukan akun OAuth yang terhubung langsung.
             </div>
             {["instagram", "github", "website"].map((name) => (
               <div className="field" key={name}>
-                <label htmlFor={name}>{name} URL</label>
+                <label htmlFor={name}>URL {name.toUpperCase()}</label>
                 <input
                   id={name}
                   name={name}
@@ -946,28 +946,28 @@ export function AdminSettings() {
               </div>
             ))}
           </div>
-        ) : tab === "Payment configuration" ? (
+        ) : tab === "Konfigurasi Pembayaran" ? (
           <div className="form-stack">
             <div className="notice">
               <Info />
-              Pending backend integration. Do not enter API keys or payment credentials. No payment
-              provider is connected.
+              Pilihan ini hanya preferensi tampilan. Integrasi pembayaran nyata memerlukan backend terverifikasi; alur saat ini dapat menggunakan transaksi simulasi. Jangan masukkan kredensial rahasia di frontend publik.
             </div>
             <div className="field">
-              <label>Preferred provider (placeholder)</label>
+              <label>Penyedia Pembayaran Terpilih</label>
               <select
                 className="form-input"
                 name="provider"
-                defaultValue={store.settings['provider'] || "Not configured"}
+                defaultValue={store.settings['provider'] || "Belum dikonfigurasi"}
               >
-                <option>Not configured</option>
-                <option>Midtrans — future integration</option>
-                <option>Xendit — future integration</option>
+                <option>Belum dikonfigurasi</option>
+                <option>Pakasir — memerlukan backend</option>
+                <option>Midtrans — integrasi mendatang</option>
+                <option>Xendit — integrasi mendatang</option>
               </select>
             </div>
             <div className="field">
-              <label>Mode</label>
-              <input className="form-input" disabled value="Frontend simulation only" />
+              <label>Mode Transaksi</label>
+              <input className="form-input" disabled value="Simulasi; verifikasi pembayaran server belum tersedia" />
             </div>
           </div>
         ) : (
@@ -978,28 +978,28 @@ export function AdminSettings() {
                 name="notifications"
                 defaultChecked={store.settings['notifications'] !== "off"}
               />
-              Order notification preference (demo)
+              Notifikasi pesanan baru (Email / Dashboard)
             </label>
             <div className="field">
-              <label>Currency</label>
-              <input className="form-input" value="Indonesian Rupiah (IDR)" disabled />
+              <label>Mata Uang Etalase</label>
+              <input className="form-input" value="Rupiah Indonesia (Rp / IDR)" disabled />
             </div>
             <div className="field">
-              <label>Timezone</label>
+              <label>Zona Waktu</label>
               <select
                 className="form-input"
                 name="timezone"
                 defaultValue={store.settings['timezone'] || "Asia/Jakarta"}
               >
-                <option>Asia/Jakarta</option>
-                <option>Asia/Makassar</option>
-                <option>Asia/Jayapura</option>
+                <option>Asia/Jakarta (WIB)</option>
+                <option>Asia/Makassar (WITA)</option>
+                <option>Asia/Jayapura (WIT)</option>
               </select>
             </div>
           </div>
         )}
         <Button className="mt-6" type="submit">
-          Save demo settings
+          Simpan pengaturan
         </Button>
       </form>
     </DashboardLayout>

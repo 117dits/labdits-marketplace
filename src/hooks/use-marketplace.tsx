@@ -41,8 +41,8 @@ export function MarketplaceProvider({children}:{children:ReactNode}) {
   };
  const saveProductAsync=async(p:Product)=>{if(catalog) await catalog.saveProduct(p);setState(s=>({...s,products:s.products.some(x=>x.id===p.id)?s.products.map(x=>x.id===p.id?p:x):[p,...s.products]}));};
  const saveProduct=(p:Product)=>{void saveProductAsync(p).catch(e=>toast.error(`Produk tidak tersimpan: ${e.message}`));};
- const deleteProduct=(id:string)=>{if(catalog){void catalog.deleteProduct(id).then(()=>setState(s=>({...s,products:s.products.filter(p=>p.id!==id),cart:s.cart.filter(i=>i.productId!==id)}))).catch(e=>toast.error(`Product not deleted: ${e.message}`));return;}setState(s=>({...s,products:s.products.filter(p=>p.id!==id),cart:s.cart.filter(i=>i.productId!==id)}));};
- const saveSettings=(settings:Record<string,string>)=>{if(catalog){void catalog.saveSettings(settings).then(()=>setState(s=>({...s,settings}))).catch(e=>toast.error(`Settings not saved: ${e.message}`));return;}setState(s=>({...s,settings}));};
+ const deleteProduct=(id:string)=>{if(catalog){void catalog.deleteProduct(id).then(()=>setState(s=>({...s,products:s.products.filter(p=>p.id!==id),cart:s.cart.filter(i=>i.productId!==id)}))).catch(e=>toast.error(`Produk gagal dihapus: ${e.message}`));return;}setState(s=>({...s,products:s.products.filter(p=>p.id!==id),cart:s.cart.filter(i=>i.productId!==id)}));};
+ const saveSettings=(settings:Record<string,string>)=>{if(catalog){void catalog.saveSettings(settings).then(()=>setState(s=>({...s,settings}))).catch(e=>toast.error(`Pengaturan gagal disimpan: ${e.message}`));return;}setState(s=>({...s,settings}));};
  const value:Store={...state, hydrated,addToCart,updateCart,saveProduct,saveProductAsync,deleteProduct,setSession:session=>{if(catalog){if(!session) void supabase.auth.signOut();return;}setState(s=>({...s,session}));},placeOrder:order=>setState(s=>({...s,orders:[order,...s.orders],cart:[]})),saveSettings,total:state.cart.reduce((sum,i)=>{const p=state.products.find(p=>p.id===i.productId);return sum+(p?priceFor(p,i.license)*i.quantity:0)},0)};
  return <Context.Provider value={value}>{children}</Context.Provider>;
 }

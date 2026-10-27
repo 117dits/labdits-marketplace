@@ -128,11 +128,11 @@ export function DemoViewer({ slug }: { slug: string }) {
           <Button
             variant="ghost"
             size="icon"
-            title="Refresh preview"
-            aria-label="Refresh preview"
+            title="Muat ulang pratinjau"
+            aria-label="Muat ulang pratinjau"
             onClick={() => {
               setRefresh((x) => x + 1);
-              toast.success("Preview refreshed");
+              toast.success("Pratinjau dimuat ulang");
             }}
           >
             <RotateCw />
@@ -140,14 +140,14 @@ export function DemoViewer({ slug }: { slug: string }) {
           <Button
             variant="ghost"
             size="icon"
-            title="Fullscreen preview"
-            aria-label="Fullscreen preview"
+            title="Layar penuh"
+            aria-label="Layar penuh"
             onClick={() => {
               if (ref.current?.requestFullscreen)
                 ref.current
                   .requestFullscreen()
-                  .catch(() => toast.info("Fullscreen is not supported by this browser."));
-              else toast.info("Fullscreen is not supported by this browser.");
+                  .catch(() => toast.info("Mode layar penuh tidak didukung peramban ini."));
+              else toast.info("Mode layar penuh tidak didukung peramban ini.");
             }}
           >
             <Maximize />
@@ -158,8 +158,8 @@ export function DemoViewer({ slug }: { slug: string }) {
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                title="Open external demo"
-                aria-label="Open external demo"
+                title="Buka live demo eksternal"
+                aria-label="Buka live demo eksternal"
               >
                 <ExternalLink />
               </a>
@@ -169,15 +169,15 @@ export function DemoViewer({ slug }: { slug: string }) {
             <Link
               to="/products/$slug"
               params={{ slug: p.slug }}
-              title="Back to product"
-              aria-label="Back to product"
+              title="Kembali ke produk"
+              aria-label="Kembali ke produk"
             >
               <ArrowLeft />
             </Link>
           </Button>
           <Button asChild size="sm">
             <Link to="/checkout" onClick={() => addToCart(p.id)}>
-              Buy project
+              Beli proyek
               <ArrowUpRight />
             </Link>
           </Button>
@@ -188,7 +188,7 @@ export function DemoViewer({ slug }: { slug: string }) {
           <span>
             {url ? (
               <>
-                {url === dep?.previewUrl ? "Deployed preview" : "External embedded preview"} ·{" "}
+                {url === dep?.previewUrl ? "Pratinjau deployment" : "Pratinjau tertanam eksternal"} ·{" "}
                 <a
                   className="font-mono text-primary underline"
                   href={url}
@@ -200,11 +200,11 @@ export function DemoViewer({ slug }: { slug: string }) {
               </>
             ) : (
               <>
-                Preview: <strong>{bundled ? "Bundled interactive demo" : "Public demo not ready"}</strong>
+                Pratinjau: <strong>{bundled ? "Demo interaktif bawaan" : "Demo publik belum siap"}</strong>
                 {hasProjectSource && (
                   <>
                     {" "}
-                    · Uploaded build: {p.project ? statusLabel[currentStatus(p.project)] : "not connected"}
+                    · Status build: {p.project ? statusLabel[currentStatus(p.project)] : "belum terhubung"}
                   </>
                 )}
               </>
@@ -215,7 +215,7 @@ export function DemoViewer({ slug }: { slug: string }) {
           </span>
           {url && (
             <Button variant="link" size="sm" onClick={() => setExternal(true)}>
-              Preview not loading?
+              Pratinjau tidak termuat?
             </Button>
           )}
         </div>
@@ -223,11 +223,11 @@ export function DemoViewer({ slug }: { slug: string }) {
           <div className="notice mx-auto mb-5 max-w-6xl">
             <Info />
             <span>
-              This application blocks embedding (X-Frame-Options or CSP frame-ancestors).{" "}
-              <a href={url} target="_blank" rel="noreferrer" className="text-primary underline">
-                Open Live Demo
+              Aplikasi ini membatasi pratinjau tertanam (X-Frame-Options atau CSP frame-ancestors).{" "}
+              <a href={url} target="_blank" rel="noreferrer" className="text-primary underline font-medium">
+                Buka Live Demo
               </a>{" "}
-              in a new tab.
+              di tab baru.
             </span>
           </div>
         )}
@@ -249,8 +249,8 @@ export function DemoViewer({ slug }: { slug: string }) {
             <MockApplication key={`${p.id}-${refresh}`} product={p} />
           ) : (
             <div className="mock-app" role="status">
-              <h2>Public demo not ready</h2>
-              <p>Upload saja belum meng-host website. Sambungkan URL demo HTTPS publik atau tunggu deployment terverifikasi sebelum dipublikasikan.</p>
+              <h2>Demo publik belum siap</h2>
+              <p>Unggah file saja belum meng-host website. Sambungkan URL demo HTTPS publik atau tunggu proses deployment terverifikasi sebelum dipublikasikan.</p>
             </div>
           )}
         </div>
@@ -259,18 +259,18 @@ export function DemoViewer({ slug }: { slug: string }) {
   );
 }
 export function MockApplication({ product: p }: { product: Product }) {
-  const [tab, setTab] = useState("Overview"),
+  const [tab, setTab] = useState("Ringkasan"),
     [query, setQuery] = useState(""),
     [tasks, setTasks] = useState([
-      { name: "Design the new homepage", status: 0 },
-      { name: "Build reusable components", status: 1 },
-      { name: "Review brand direction", status: 2 },
-      { name: "Prepare launch checklist", status: 0 },
+      { name: "Desain homepage baru", status: 0 },
+      { name: "Buat reusable components", status: 1 },
+      { name: "Tinjau arah visual brand", status: 2 },
+      { name: "Siapkan checklist peluncuran", status: 0 },
     ]),
     [order, setOrder] = useState<string[]>([]),
-    [period, setPeriod] = useState("This month");
+    [period, setPeriod] = useState("Bulan ini");
   const addTask = () => {
-    const name = window.prompt("Task name");
+    const name = window.prompt("Nama tugas");
     if (name?.trim()) setTasks((t) => [...t, { name: name.trim(), status: 0 }]);
   };
   const isPOS = p.category === "POS Systems",
@@ -287,13 +287,13 @@ export function MockApplication({ product: p }: { product: Product }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => toast.info("You are exploring the bundled interactive preview.")}
+          onClick={() => toast.info("Anda sedang menjelajahi simulasi demo interaktif bawaan.")}
         >
-          Preview workspace
+          Pratinjau antarmuka
         </Button>
       </div>
       <div className="chips">
-        {["Overview", isPOS ? "Point of Sale" : isTask ? "Board" : "Transactions", "Reports"].map(
+        {["Ringkasan", isPOS ? "Point of Sale" : isTask ? "Papan Tugas" : "Transaksi", "Laporan"].map(
           (t) => (
             <Button
               variant="ghost"
@@ -307,28 +307,28 @@ export function MockApplication({ product: p }: { product: Product }) {
         )}
       </div>
       <div className="mock-app-header">
-        <h1>{isPOS ? "Point of Sale" : isTask ? "Website redesign" : tab}</h1>
+        <h1>{isPOS ? "Point of Sale (Kasir)" : isTask ? "Manajemen Proyek" : tab}</h1>
         {isTask ? (
           <Button onClick={addTask} size="sm">
             <Plus />
-            New task
+            Tugas baru
           </Button>
         ) : (
           <select
             className="form-input"
-            aria-label="Demo date range"
+            aria-label="Rentang waktu demo"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
           >
-            <option>This month</option>
-            <option>Last month</option>
-            <option>This year</option>
+            <option>Bulan ini</option>
+            <option>Bulan lalu</option>
+            <option>Tahun ini</option>
           </select>
         )}
       </div>
       {isTask ? (
         <div className="mock-kanban">
-          {["To do", "In progress", "Done"].map((label, i) => (
+          {["Rencana", "Dikerjakan", "Selesai"].map((label, i) => (
             <div className="mock-kanban-column" key={label}>
               <h3>
                 {label} · {tasks.filter((t) => t.status === i).length}
@@ -338,7 +338,7 @@ export function MockApplication({ product: p }: { product: Product }) {
                 .map((t) => (
                   <div className="mock-task" key={t.name}>
                     <p>{t.name}</p>
-                    <span className="status mt-3">{i === 2 ? "Complete" : "Medium priority"}</span>
+                    <span className="status mt-3">{i === 2 ? "Selesai" : "Prioritas Menengah"}</span>
                     <Button
                       variant="ghost"
                       className="mt-3 w-full"
@@ -349,7 +349,7 @@ export function MockApplication({ product: p }: { product: Product }) {
                         )
                       }
                     >
-                      {i === 2 ? "Reopen" : "Move to next"}
+                      {i === 2 ? "Buka kembali" : "Lanjut tahap"}
                       <ArrowUpRight />
                     </Button>
                   </div>
@@ -384,7 +384,7 @@ export function MockApplication({ product: p }: { product: Product }) {
               ))}
             </div>
             <div className="panel">
-              <h2>Current order</h2>
+              <h2>Pesanan saat ini</h2>
               {order.length ? (
                 order.map((o, i) => (
                   <div className="summary-row" key={i}>
@@ -394,12 +394,12 @@ export function MockApplication({ product: p }: { product: Product }) {
                       size="sm"
                       onClick={() => setOrder((x) => x.filter((_, j) => j !== i))}
                     >
-                      Remove
+                      Hapus
                     </Button>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">Select an item to start an order.</p>
+                <p className="text-sm text-muted-foreground">Pilih menu untuk memulai pesanan.</p>
               )}
               <div className="summary-row summary-total">
                 <span>Total</span>
@@ -428,10 +428,10 @@ export function MockApplication({ product: p }: { product: Product }) {
                 disabled={!order.length}
                 onClick={() => {
                   setOrder([]);
-                  toast.success("Demo sale completed. No payment collected.");
+                  toast.success("Transaksi simulasi kasir selesai. Tidak ada tagihan riil.");
                 }}
               >
-                Complete demo sale
+                Selesaikan transaksi demo
               </Button>
             </div>
           </div>
@@ -440,20 +440,20 @@ export function MockApplication({ product: p }: { product: Product }) {
         <>
           <div className="metric-grid">
             {[
-              ["Total balance", period === "Last month" ? "Rp 98.420.000" : "Rp 124.850.000"],
-              ["Total income", period === "This year" ? "Rp 342.400.000" : "Rp 32.400.000"],
-              ["Total expenses", "Rp 18.250.000"],
+              ["Total saldo", period === "Bulan lalu" ? "Rp 98.420.000" : "Rp 124.850.000"],
+              ["Total pendapatan", period === "Tahun ini" ? "Rp 342.400.000" : "Rp 32.400.000"],
+              ["Total pengeluaran", "Rp 18.250.000"],
             ].map(([label, value]) => (
               <div className="panel metric" key={label}>
                 <span className="metric-label">{label}</span>
                 <strong>{value}</strong>
-                <small>+12.8% from last period</small>
+                <small>+12.8% dibanding periode lalu</small>
               </div>
             ))}
           </div>
-          {tab !== "Transactions" && (
+          {tab !== "Transaksi" && tab !== "Transactions" && (
             <div className="panel">
-              <h2>{tab === "Reports" ? "Revenue report" : "Revenue overview"}</h2>
+              <h2>{tab === "Laporan" || tab === "Reports" ? "Laporan pendapatan" : "Ringkasan pendapatan"}</h2>
               <div className="chart-wrap">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
@@ -484,13 +484,13 @@ export function MockApplication({ product: p }: { product: Product }) {
           )}
           <div className="mt-5 panel">
             <div className="mock-app-header">
-              <h2>Recent transactions</h2>
+              <h2>Transaksi terbaru</h2>
               <div className="search-field">
                 <Search />
                 <input
                   className="form-input"
-                  aria-label="Search demo transactions"
-                  placeholder="Search..."
+                  aria-label="Cari transaksi demo"
+                  placeholder="Cari transaksi..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -500,22 +500,22 @@ export function MockApplication({ product: p }: { product: Product }) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Transaction</th>
-                    <th>Category</th>
-                    <th>Amount</th>
+                    <th>Transaksi</th>
+                    <th>Kategori</th>
+                    <th>Nominal</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {["Design subscription", "Client payment", "Office supplies", "Project invoice"]
+                  {["Langganan Desain", "Pembayaran Klien", "Kebutuhan Kantor", "Faktur Proyek"]
                     .filter((s) => s.toLowerCase().includes(query.toLowerCase()))
                     .map((name, i) => (
                       <tr key={name}>
                         <td>{name}</td>
-                        <td>{i % 2 ? "Income" : "Business"}</td>
+                        <td>{i % 2 ? "Pendapatan" : "Operasional"}</td>
                         <td>{money(250000 + i * 1750000)}</td>
                         <td>
-                          <span className="status status-positive">Completed</span>
+                          <span className="status status-positive">Selesai</span>
                         </td>
                       </tr>
                     ))}
@@ -527,7 +527,7 @@ export function MockApplication({ product: p }: { product: Product }) {
       )}
       <div className="notice mt-6">
         <Info />
-        Bundled interactive preview. Changes stay in this session and reset when refreshed.
+        Pratinjau interaktif bawaan. Perubahan hanya berlaku selama sesi ini dan akan tereset saat dimuat ulang.
       </div>
     </div>
   );

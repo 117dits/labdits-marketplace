@@ -153,7 +153,7 @@ export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downlo
   const items=paid.flatMap(o=>o.items.map(i=>({...i,orderId:o.id})));
   const [name,setName]=useState(store.session?.name||''),[email,setEmail]=useState(store.session?.email||'');
   const titles={overview:'Area Pelanggan Anda.',orders:'Riwayat Pesanan.',downloads:'Unduhan Source Code & Lisensi.',settings:'Pengaturan Akun.'};
-  return <DashboardLayout title={view==='overview'?'Ringkasan':view}>
+  return <DashboardLayout title={{overview:'Ringkasan',orders:'Pesanan',downloads:'Unduhan',settings:'Pengaturan'}[view]}>
     <div className="app-heading">
       <div>
         <div className="eyebrow mb-4">LABDITS / AKUN SAYA</div>
@@ -219,7 +219,7 @@ export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downlo
         })}
       </div>}
     </>}
-    {view==='settings'&&<form className="panel max-w-xl form-stack" onSubmit={e=>{e.preventDefault();if(store.session)store.setSession({...store.session,name,email});toast.success('Pengaturan profil berhasil disimpan')}}>
+    {view==='settings'&&<form className="panel max-w-xl form-stack" onSubmit={async e=>{e.preventDefault();if(!store.session)return;try { if(catalogConfigured()){const {error}=await supabase.auth.updateUser({data:{name:name||store.session.name}});if(error)throw error;}else store.setSession({...store.session,name:name||store.session.name,email:email||store.session.email});toast.success('Pengaturan profil berhasil disimpan');}catch(error){toast.error(error instanceof Error?error.message:'Profil gagal disimpan');}}}>
       <h2>Informasi Profil</h2>
       <div className="field">
         <label htmlFor="account-name">Nama Lengkap</label>
@@ -227,7 +227,8 @@ export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downlo
       </div>
       <div className="field">
         <label htmlFor="account-email">Email Terdaftar</label>
-        <input id="account-email" type="email" required className="form-input" value={email||store.session?.email||''} onChange={e=>setEmail(e.target.value)}/>
+        <input id="account-email" type="email" required readOnly={catalogConfigured()} className="form-input" value={email||store.session?.email||''} onChange={e=>setEmail(e.target.value)}/>
+        {catalogConfigured()&&<p className="text-xs text-muted-foreground">Untuk mengubah email akun, gunakan alur verifikasi email Supabase; formulir ini hanya mengubah nama profil.</p>}
       </div>
       <Button type="submit">Simpan Perubahan</Button>
     </form>}

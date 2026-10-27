@@ -53,8 +53,8 @@ export const statusLabel: Record<DeploymentStatus, string> = {
   deploying: "Menerbitkan",
   ready: "Siap",
   failed: "Gagal",
-  configuration_required: "Configuration Required",
-  backend_required: "Backend Integration Required",
+  configuration_required: "Konfigurasi Diperlukan",
+  backend_required: "Integrasi Backend Diperlukan",
 };
 export const statusClass = (s: DeploymentStatus) =>
   s === "ready"
@@ -69,7 +69,7 @@ export function SupportedProjectStacks({ compact = false }: { compact?: boolean 
   return (
     <div className={`rounded-md border border-border bg-secondary/30 ${compact ? "p-3" : "p-4"}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <strong>Supported languages:</strong>
+        <strong>Bahasa pemrograman yang didukung:</strong>
         {SUPPORTED_PROJECT_LANGUAGES.map((language) => (
           <span className="status status-positive" key={language}>
             {language}
@@ -77,12 +77,11 @@ export function SupportedProjectStacks({ compact = false }: { compact?: boolean 
         ))}
       </div>
       <p className="mt-3 text-xs leading-6 text-muted-foreground">
-        Frameworks: {SUPPORTED_PROJECT_FRAMEWORKS.join(" · ")}
+        Framework: {SUPPORTED_PROJECT_FRAMEWORKS.join(" · ")}
       </p>
       {!compact && (
         <p className="mt-2 text-xs leading-6 text-muted-foreground">
-          {SPECIAL_RUNTIME_FRAMEWORKS.join(" · ")} are detected too, but require a dedicated server
-          runtime and environment configuration.
+          {SPECIAL_RUNTIME_FRAMEWORKS.join(" · ")} juga dapat dideteksi, namun memerlukan konfigurasi server runtime dan environment khusus.
         </p>
       )}
     </div>
@@ -353,7 +352,7 @@ export function ProjectUploader({
   async function upload() {
     if (!value || inspecting) return;
     if (!raw.current.length) {
-      toast.error("Select the project files again to upload them.");
+      toast.error("Pilih kembali file proyek untuk diunggah.");
       return;
     }
     const selection = generation.current;
@@ -409,8 +408,8 @@ export function ProjectUploader({
     } catch (e) {
       if (generation.current !== selection) return;
       if (e instanceof DOMException && e.name === "AbortError") {
-        set({ localStatus: "pending", localMessage: "Upload cancelled." }, selection);
-        toast.info("Upload cancelled");
+        set({ localStatus: "pending", localMessage: "Unggahan dibatalkan." }, selection);
+        toast.info("Unggahan dibatalkan");
       } else if (e instanceof BackendNotConnectedError)
         set({ localStatus: "backend_required", localMessage: e.message }, selection);
       else
@@ -429,7 +428,7 @@ export function ProjectUploader({
 
   async function deploy() {
     if (!value?.projectId) {
-      toast.error("Project ID not found. Upload files first.");
+      toast.error("ID proyek tidak ditemukan. Unggah file terlebih dahulu.");
       return;
     }
     const currentConfig: BuildConfig = value.buildConfig || {
@@ -449,7 +448,7 @@ export function ProjectUploader({
       set({ buildConfig: config, localMessage: undefined, localStatus: "building" });
       set({ deployment: await deploymentService.deploy(value.projectId, config) });
       set({ localStatus: "building", localMessage: undefined });
-      toast.success("Deployment requested");
+      toast.success("Proses deployment dimulai");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Deploy failed";
       toast.error(`Deploy error: ${msg}`);
@@ -473,11 +472,8 @@ export function ProjectUploader({
           <div className="notice">
             <Info />
             <span>
-              <strong>Backend Integration Required.</strong> TypeScript, JavaScript and supported
-              frameworks can already be inspected and configured in your browser. Uploading,
-              building and hosting still need the LABDITS deployment API (set{" "}
-              <code>VITE_LABDITS_API_URL</code>). The product stays a draft until a verified demo
-              exists.
+              <strong>Integrasi backend diperlukan.</strong> Proyek TypeScript, JavaScript, dan framework yang didukung dapat diperiksa di peramban. Mengunggah, membangun, dan menerbitkan tetap memerlukan API deployment LABDITS (atur{" "}
+              <code>VITE_LABDITS_API_URL</code>). Produk tetap berupa draf sampai demo terverifikasi tersedia.
             </span>
           </div>
           <SupportedProjectStacks />
@@ -492,19 +488,16 @@ export function ProjectUploader({
         }}
       >
         <Upload />
-        <h3>Drop a project ZIP or files here.</h3>
-        <p>
-          ZIP, project folder, or multiple files · No app-imposed size limit · Code is never
-          executed here
-        </p>
+        <h3>Letakkan ZIP proyek atau file di sini.</h3>
+        <p>ZIP, folder proyek, atau beberapa file · Tanpa batas ukuran dari aplikasi · Kode tidak dijalankan di peramban</p>
         <div className="flex flex-wrap justify-center gap-3">
           <Button type="button" onClick={() => fileRef.current?.click()}>
             <FileArchive />
-            Choose ZIP or files
+            Pilih ZIP atau file
           </Button>
           <Button type="button" variant="outline" onClick={() => folderRef.current?.click()}>
             <FolderOpen />
-            Choose folder
+            Pilih folder proyek
           </Button>
         </div>
         <input
@@ -539,7 +532,7 @@ export function ProjectUploader({
         <>
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
             <span>
-              {value.files.length} files · {formatBytes(value.totalSize)} · {value.sourceType}
+              {value.files.length} berkas · {formatBytes(value.totalSize)} · {value.sourceType}
             </span>
             <Button
               type="button"
@@ -569,33 +562,33 @@ export function ProjectUploader({
           <FileTree files={value.files} />
           {a && (
             <div className="panel">
-              <h3 className="mb-3">Detection summary</h3>
+              <h3 className="mb-3">Ringkasan deteksi</h3>
               <dl className="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
                 {[
-                  ["Project Name", a.projectName],
+                  ["Nama Proyek", a.projectName],
                   ["Framework", a.framework],
                   ["Language", a.language],
                   ["Styling", a.styling.join(", ") || "—"],
-                  ["Package Manager", a.packageManager],
-                  ["Build Command", a.buildCommand ?? "Not detected — configure manually"],
-                  ["Output Directory", a.outputDirectory ?? "Not detected — configure manually"],
-                  ["Server Runtime", a.needsServerRuntime ? "Required" : "Not required"],
+                  ["Manajer Paket", a.packageManager],
+                  ["Perintah Build", a.buildCommand ?? "Tidak terdeteksi — atur manual"],
+                  ["Direktori Output", a.outputDirectory ?? "Tidak terdeteksi — atur manual"],
+                  ["Runtime Server", a.needsServerRuntime ? "Diperlukan" : "Tidak diperlukan"],
                   [
-                    "Environment Variables",
+                    "Variabel Lingkungan",
                     a.envRequired
-                      ? `Required${a.envKeys.length ? ` (${a.envKeys.join(", ")})` : ""}`
-                      : "None detected",
+                      ? `Diperlukan${a.envKeys.length ? ` (${a.envKeys.join(", ")})` : ""}`
+                      : "Tidak terdeteksi",
                   ],
                   [
-                    "Deployment Compatibility",
+                    "Kompatibilitas Deployment",
                     a.compatibility === "supported"
-                      ? "Supported"
+                      ? "Didukung"
                       : a.compatibility === "unsupported"
-                        ? "Unsupported runtime"
-                        : "Configuration Required",
+                        ? "Runtime tidak didukung"
+                        : "Konfigurasi diperlukan",
                   ],
-                  ["Confidence", a.confidence],
-                  ["Key files", a.keyFiles.join(", ") || "—"],
+                  ["Tingkat keyakinan", a.confidence],
+                  ["File utama", a.keyFiles.join(", ") || "—"],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-3 border-b border-border py-1">
                     <dt className="text-muted-foreground">{k}</dt>
@@ -615,11 +608,11 @@ export function ProjectUploader({
             <div className="form-grid">
               {(
                 [
-                  ["installCommand", "Install command"],
-                  ["buildCommand", "Build command"],
-                  ["outputDirectory", "Output directory"],
-                  ["nodeVersion", "Node version"],
-                  ["envNotes", "Required env variable names (values set on backend)"],
+                  ["installCommand", "Perintah instalasi"],
+                  ["buildCommand", "Perintah build"],
+                  ["outputDirectory", "Direktori output"],
+                  ["nodeVersion", "Versi Node"],
+                  ["envNotes", "Nama variabel lingkungan (nilainya diatur pada backend)"],
                 ] as const
               ).map(([k, l]) => (
                 <div className="field" key={k}>
@@ -629,7 +622,7 @@ export function ProjectUploader({
                     className="form-input font-mono"
                     value={cfg[k]}
                     onChange={(e) => setCfg(k, e.target.value)}
-                    placeholder="Configure manually"
+                    placeholder="Atur manual"
                   />
                 </div>
               ))}
@@ -640,14 +633,14 @@ export function ProjectUploader({
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${progress}%` }} />
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">Uploading… {progress}%</p>
+              <p className="mt-2 text-xs text-muted-foreground">Mengunggah… {progress}%</p>
             </div>
           )}
           {value.localMessage && (
             <div className={`notice ${value.localStatus === "failed" ? "border-destructive text-destructive" : ""}`}>
               <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
               <div className="flex-1 text-xs">
-                <strong>{value.localStatus === "failed" ? "Deployment Error:" : "Notice:"}</strong>{" "}
+                <strong>{value.localStatus === "failed" ? "Kesalahan deployment:" : "Catatan:"}</strong>{" "}
                 {value.localMessage}
               </div>
             </div>
@@ -655,28 +648,28 @@ export function ProjectUploader({
           {hasVideo && !value.uploadId && (
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" checked={videoConsent} onChange={(event) => setVideoConsent(event.target.checked)} />
-              I consent to uploading the detected preview video. Its URL becomes public, including before publication.
+              Saya setuju mengunggah video pratinjau yang terdeteksi. URL video akan menjadi publik (URL becomes public), bahkan sebelum produk diterbitkan.
             </label>
           )}
           <div className="flex flex-wrap gap-2">
             {!value.uploadId && (
-              <Button type="button" disabled={busy || inspecting || !!problems.length} onClick={upload}>
+              <Button type="button" aria-label="Upload project" disabled={busy || inspecting || !!problems.length} onClick={upload}>
                 <Upload />
                 {value.localStatus === "failed" || value.localStatus === "backend_required"
-                  ? "Retry upload"
-                  : "Upload project"}
+                  ? "Coba unggah ulang"
+                  : "Unggah proyek"}
               </Button>
             )}
             {busy && abort.current && (
               <Button type="button" variant="outline" onClick={() => abort.current?.abort()}>
                 <X />
-                Cancel upload
+                Batalkan unggahan
               </Button>
             )}
             {value.uploadId && (
               <Button type="button" disabled={busy} onClick={deploy}>
                 <Rocket />
-                {value.deployment?.status === "failed" ? "Retry deployment" : "Deploy demo"}
+                {value.deployment?.status === "failed" ? "Coba deploy ulang" : "Deploy live demo"}
               </Button>
             )}
             {value.projectId && (
@@ -690,14 +683,14 @@ export function ProjectUploader({
                     const res = await deploymentService.getLogs(value.projectId!);
                     setLogs(res.lines);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Failed loading logs");
+                    toast.error(e instanceof Error ? e.message : "Gagal memuat log");
                   } finally {
                     setLoadingLogs(false);
                   }
                 }}
               >
                 <ScrollText />
-                {loadingLogs ? "Loading logs..." : "View build logs"}
+                {loadingLogs ? "Memuat log..." : "Lihat log build"}
               </Button>
             )}
           </div>
@@ -705,16 +698,17 @@ export function ProjectUploader({
             <div className="panel mt-4 p-4 border rounded-md bg-muted/30">
               <div className="flex items-center justify-between pb-2 mb-2 border-b">
                 <span className="font-medium text-xs flex items-center gap-2">
-                  <ScrollText className="h-4 w-4" /> Live Build Logs
+                  <ScrollText className="h-4 w-4" /> Log build langsung
                 </span>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setLogs(null)}>
                   <X className="h-3.5 w-3.5" />
+                  <span className="sr-only">Tutup log</span>
                 </Button>
               </div>
               <pre className="max-h-60 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed select-text">
                 {logs.length
                   ? logs.map((l) => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.level.toUpperCase()}: ${l.message}`).join("\n")
-                  : "No log lines available yet."}
+                  : "Belum ada baris log."}
               </pre>
             </div>
           )}
