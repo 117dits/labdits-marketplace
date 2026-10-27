@@ -6,8 +6,8 @@ vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
 import { ProductCard } from '@/components/products/product-card';
 import type { Product } from '@/types';
 
-function show(videoUrl?: string) {
-  const product = { id: 'p', slug: 'p', name: 'Produk', subtitle: 'Aplikasi', category: 'Web', description: '', stack: [], features: [], price: 10, commercialPrice: 20, installationPrice: 30, image: '/image.png', theme: 'mint', featured: false, status: 'published', popularity: 0, version: '1', updated: '', previewVideoUrl: videoUrl } as Product;
+function show(videoUrl?: string, coverUrl?: string) {
+  const product = { id: 'p', slug: 'p', name: 'Produk', subtitle: 'Aplikasi', category: 'Web', description: '', stack: [], features: [], price: 10, commercialPrice: 20, installationPrice: 30, image: '/image.png', theme: 'mint', featured: false, status: 'published', popularity: 0, version: '1', updated: '', previewVideoUrl: videoUrl, previewThumbnailUrl: coverUrl } as Product;
   const root = createRootRoute({ component: () => <ProductCard product={product} /> });
   const detail = createRoute({ getParentRoute: () => root, path: 'products/$slug' });
   const live = createRoute({ getParentRoute: () => root, path: '$productSlug' });
@@ -16,6 +16,12 @@ function show(videoUrl?: string) {
 }
 
 describe('product hover video', () => {
+  it('uses a live-demo screenshot for its cover and video poster without changing the manual image', async () => {
+    show('/previews/demo.mp4', 'https://cdn.example/real-demo.png');
+    const image = await screen.findByRole('img', { name: /Pratinjau aplikasi Produk/i });
+    expect(image).toHaveAttribute('src', 'https://cdn.example/real-demo.png');
+    expect(image.closest('a')?.querySelector('video')).toHaveAttribute('poster', 'https://cdn.example/real-demo.png');
+  });
   it('does not invent a video when the product has none', async () => {
     show();
     expect(await screen.findByRole('img', { name: /Produk/i })).toBeInTheDocument();

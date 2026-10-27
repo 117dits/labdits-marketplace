@@ -6,7 +6,8 @@ import type { Json } from '@/integrations/supabase/types';
 // The browser uses only the publishable client. Authorization is enforced by RLS;
 // this extra check prevents misleading optimistic edits before the server denies them.
 export function createCatalogService(client: typeof supabase = supabase) {
-  const loadedVideos = new Map<string, string | undefined>();
+  const loadedVideos = new Map<string, { video: string | undefined; thumbnail: string | undefined }>();
+  // Retain the editor's first media snapshot so a background worker cannot be undone by a stale save.
   async function requireAdmin() {
     const { data: { user }, error } = await client.auth.getUser();
     if (error) throw error;
@@ -22,7 +23,7 @@ export function createCatalogService(client: typeof supabase = supabase) {
       return (data ?? []).map(row => {
         const details = row.data as Partial<Product> & { image?: string };
         // Keep the first snapshot: an open editor retains that baseline across refreshes.
-        if (!loadedVideos.has(row.id)) loadedVideos.set(row.id, details.previewVideoUrl);
+        if (!loadedVideos.has(row.id)) loadedVideos.set(row.id, { video: details.previewVideoUrl, thumbnail: details.previewThumbnailUrl });
         const image = details.image?.startsWith('seed:') ? seedProducts.find(p => p.id === row.id)?.image : details.image;
         return { ...details, id: row.id, slug: row.slug, name: row.name, status: row.status, image } as Product;
       });
@@ -37,7 +38,8 @@ export function createCatalogService(client: typeof supabase = supabase) {
       const { id, slug, name, status, ...details } = product;
       const data = JSON.parse(JSON.stringify(details)) as Record<string, Json>;
       const loaded = loadedVideos.has(id);
-      const videoChanged = loaded && product.previewVideoUrl !== loadedVideos.get(id);
+      const videoChanged = loaded && product.previewVideoUrl !== loadedVideos.get(id)?.video;
+      const thumbnailChanged = loaded && product.previewThumbnailUrl !== loadedVideos.get(id)?.thumbnail;
 
       if (!loaded) {
         const result = await client.from('products').insert({ id, slug, name, status, data });
@@ -47,7 +49,7 @@ export function createCatalogService(client: typeof supabase = supabase) {
             /duplicate key|unique constraint/i.test((result.error as { message?: string }).message || '');
           if (!isDuplicate) throw result.error;
         } else {
-          loadedVideos.set(id, product.previewVideoUrl);
+          loadedVideos.set(id, { video: product.previewVideoUrl, thumbnail: product.previewThumbnailUrl });
           return;
         }
       }
@@ -63,6 +65,10 @@ export function createCatalogService(client: typeof supabase = supabase) {
         if (!videoChanged) {
           if (current['previewVideoUrl'] === undefined) delete next['previewVideoUrl'];
           else next['previewVideoUrl'] = current['previewVideoUrl'];
+        }
+        if (!thumbnailChanged) {
+          if (current['previewThumbnailUrl'] === undefined) delete next['previewThumbnailUrl'];
+          else next['previewThumbnailUrl'] = current['previewThumbnailUrl'];
         }
 
         const jsonStr = JSON.stringify(row.data);

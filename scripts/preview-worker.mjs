@@ -7,14 +7,18 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { capture, parsePreviewUrl } from './capture-preview.mjs';
+import { captureLiveScreenshot } from './render-hyperframes-preview.mjs';
 
-const BUCKET = 'preview-videos';
+const VIDEO_BUCKET = 'preview-videos';
+const IMAGE_BUCKET = 'preview-images';
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DEFAULTS = Object.freeze({ pageSize: 50, maxRows: 500, maxCaptures: 10, maxBytes: 25 * 1024 * 1024 });
 
 export function eligible(row) {
   if (!row || typeof row.id !== 'string' || !row.id || !row.data || typeof row.data !== 'object' || Array.isArray(row.data)) return false;
   const deployment = row.data.project?.deployment;
-  if (row.data.status !== 'published' || deployment?.status !== 'ready' || deployment.verified !== true || row.data.previewVideoUrl) return false;
+  if (row.status !== 'published' || deployment?.status !== 'ready' || deployment.verified !== true ||
+      (row.data.previewVideoUrl && row.data.previewThumbnailUrl)) return false;
   try { parsePreviewUrl(deployment.previewUrl); return true; } catch { return false; }
 }
 
@@ -34,36 +38,36 @@ export function createAdapter(env = process.env, fetcher = fetch) {
   }
   return {
     async list(after, limit) {
-      const params = new URLSearchParams({ select: 'id,data', order: 'id.asc', limit: String(limit) });
+      const params = new URLSearchParams({ select: 'id,name,status,data', order: 'id.asc', limit: String(limit) });
       if (after) params.set('id', `gt.${after}`);
       const rows = await (await request(`/rest/v1/products?${params}`)).json();
       if (!Array.isArray(rows)) throw Error('Unexpected products response');
       return rows;
     },
-    async upload(key, bytes) {
-      await request(`/storage/v1/object/${BUCKET}/${encodeURIComponent(key)}`, {
-        method: 'POST', headers: { 'Content-Type': 'video/mp4', 'x-upsert': 'false' }, body: bytes,
+    async upload(bucket, key, bytes) {
+      if (![VIDEO_BUCKET, IMAGE_BUCKET].includes(bucket)) throw Error('Unexpected preview bucket');
+      await request(`/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
+        method: 'POST', headers: { 'Content-Type': bucket === IMAGE_BUCKET ? 'image/png' : 'video/mp4', 'x-upsert': 'false' }, body: bytes,
       });
-      return new URL(`/storage/v1/object/public/${BUCKET}/${encodeURIComponent(key)}`, base).href;
+      return new URL(`/storage/v1/object/public/${bucket}/${encodeURIComponent(key)}`, base).href;
     },
-    async compareAndSet(row, data) {
-      // PostgreSQL jsonb equality matches the entire prior data document. The conditional
-      // PATCH never overwrites an admin edit or another worker's video; 0 rows = conflict.
-      const params = new URLSearchParams({ id: `eq.${row.id}`, data: `eq.${JSON.stringify(row.data)}`, select: 'id' });
-      const updated = await (await request(`/rest/v1/products?${params}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
-        body: JSON.stringify({ data }),
+    async publish(row, patch) {
+      // Atomic jsonb compare-and-set in the database, with large documents in the POST body.
+      const updated = await (await request('/rest/v1/rpc/publish_preview_assets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: row.id, expected_data: row.data, asset_patch: patch }),
       })).json();
-      if (!Array.isArray(updated) || updated.length > 1) throw Error('Unexpected conditional update response');
-      return updated.length === 1;
+      if (typeof updated !== 'boolean') throw Error('Unexpected preview publish response');
+      return updated;
     },
-    async remove(key) {
-      await request(`/storage/v1/object/${BUCKET}/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    async remove(bucket, key) {
+      if (![VIDEO_BUCKET, IMAGE_BUCKET].includes(bucket)) throw Error('Unexpected preview bucket');
+      await request(`/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, { method: 'DELETE' });
     },
   };
 }
 
-export async function runOnce({ adapter, capture: capturePage = capture, tempDir } = {}, limits = {}) {
+export async function runOnce({ adapter, capture: capturePage = capture, screenshot: screenshotPage = captureLiveScreenshot, tempDir } = {}, limits = {}) {
   if (!adapter) throw Error('Missing adapter');
   const { pageSize, maxRows, maxCaptures, maxBytes } = { ...DEFAULTS, ...limits };
   for (const [name, value] of Object.entries({ pageSize, maxRows, maxCaptures, maxBytes })) {
@@ -84,23 +88,36 @@ export async function runOnce({ adapter, capture: capturePage = capture, tempDir
       seen.add(row.id);
       const preview = parsePreviewUrl(row.data.project.deployment.previewUrl);
       const dir = await mkdtemp(join(tempDir || tmpdir(), 'labdits-preview-'));
-      const output = join(dir, 'capture.mp4');
-      let key;
+      const uploaded = [];
       try {
-        await capturePage({ preview, output, duration: 3, fps: 8, local: false });
-        const size = (await stat(output)).size;
-        if (!size || size > maxBytes) throw Error('Captured video size outside allowed range');
-        const bytes = await readFile(output);
-        key = `${randomUUID()}.mp4`;
-        const url = await adapter.upload(key, bytes);
-        // Preserve every unrelated data field; the adapter must implement atomic compare-and-set.
-        const updated = await adapter.compareAndSet(row, { ...row.data, previewVideoUrl: url });
-        if (updated) { summary.published++; key = undefined; }
-        else { summary.conflicts++; await adapter.remove(key); key = undefined; }
-      } catch (error) {
-        if (key) await adapter.remove(key).catch(() => {});
-        throw error;
-      } finally { await rm(dir, { recursive: true, force: true }); }
+        const patch = {};
+        const cover = join(dir, 'cover.png');
+        // Verify deployment identity before capturing either asset.
+        await screenshotPage({ preview, outputPng: cover, local: false, expectedName: row.name });
+        if (!row.data.previewThumbnailUrl) {
+          const size = (await stat(cover)).size;
+          if (!size || size > MAX_IMAGE_BYTES) throw Error('Captured screenshot size outside allowed range');
+          const key = `${randomUUID()}.png`;
+          const url = await adapter.upload(IMAGE_BUCKET, key, await readFile(cover));
+          uploaded.push([IMAGE_BUCKET, key]);
+          patch.previewThumbnailUrl = url;
+        }
+        if (!row.data.previewVideoUrl) {
+          const output = join(dir, 'capture.mp4');
+          await capturePage({ preview, output, duration: 3, fps: 8, local: false });
+          const size = (await stat(output)).size;
+          if (!size || size > maxBytes) throw Error('Captured video size outside allowed range');
+          const key = `${randomUUID()}.mp4`;
+          const url = await adapter.upload(VIDEO_BUCKET, key, await readFile(output));
+          uploaded.push([VIDEO_BUCKET, key]);
+          patch.previewVideoUrl = url;
+        }
+        if (await adapter.publish(row, patch)) { summary.published++; uploaded.length = 0; }
+        else summary.conflicts++;
+      } finally {
+        await Promise.allSettled(uploaded.map(([bucket, key]) => adapter.remove(bucket, key)));
+        await rm(dir, { recursive: true, force: true });
+      }
       if (summary.published + summary.conflicts >= maxCaptures) break;
     }
     if (batch.length < requested) break;

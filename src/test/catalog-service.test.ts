@@ -59,6 +59,18 @@ describe('catalog service', () => {
     await service.saveProduct({ ...product, price: 13 }); // provider still holds the original draft
     expect(row.data).toMatchObject({ price: 13, previewVideoUrl: 'https://cdn.example/worker.mp4' });
   });
+  it('preserves a worker screenshot after the editor loaded an older draft', async () => {
+    const { client, query } = backend();
+    let saved: unknown;
+    query.select.mockImplementation(((fields: string) => fields === 'data'
+      ? { eq: () => ({ maybeSingle: async () => ({ data: { data: { price: 10, previewThumbnailUrl: 'https://cdn.example/live.png' } }, error: null }) }) }
+      : Promise.resolve({ data: [{ id: 'p', slug: 'test', name: 'Test', status: 'draft', data: { price: 10 } }], error: null })) as never);
+    query.update.mockImplementation((...args: unknown[]) => { saved = args[0]; return { eq: () => ({ filter: () => ({ select: async () => ({ data: [{ id: 'p' }], error: null }) }) }) }; });
+    const service = createCatalogService(client as never);
+    const [stale] = await service.products();
+    await service.saveProduct({ ...stale!, price: 12 });
+    expect(saved).toMatchObject({ data: { price: 12, previewThumbnailUrl: 'https://cdn.example/live.png' } });
+  });
   it('keeps worker video even if catalog refreshes while the editor holds its old draft', async () => {
     const { client, query } = backend();
     let video: string | undefined;

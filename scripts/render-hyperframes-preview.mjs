@@ -314,7 +314,7 @@ function getNode22Path() {
   return null;
 }
 
-export async function captureLiveScreenshot({ preview, outputPng, local = false }) {
+export async function captureLiveScreenshot({ preview, outputPng, local = false, expectedName }) {
   const address = await verifiedAddress(preview.hostname, local);
   let chromium;
   try {
@@ -359,6 +359,14 @@ export async function captureLiveScreenshot({ preview, outputPng, local = false 
       throw Error('Preview navigation failed or redirected outside verified origin');
     }
 
+    // Fail closed if the target URL serves a different app (e.g. a Wharf deployment
+    // erroneously attached to FinanceFlow). Never publish the wrong product cover.
+    if (expectedName) {
+      const actual = await page.evaluate(() => `${document.title} ${document.body?.innerText.slice(0, 1200) || ''}`);
+      const name = expectedName.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const visible = actual.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (name.length < 3 || !visible.includes(name)) throw Error('Live demo does not identify as the expected product; verify the deployment mapping');
+    }
     // Wait for animations and fonts to settle
     await page.waitForTimeout(2500);
 
