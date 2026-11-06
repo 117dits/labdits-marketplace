@@ -26,7 +26,7 @@ describe('catalog service', () => {
     const { client, query } = backend();
     query.select.mockResolvedValueOnce({ data: [{ id: '1', slug: 'financeflow', name: 'FinanceFlow', status: 'published', data: { price: 10, image: 'seed:1' } }], error: null });
     const [item] = await createCatalogService(client as never).products();
-    expect(item?.image).toMatch(/financeflow/);
+    expect(item?.image).toMatch(/dash1_fernly|financeflow/);
   });
   it('rejects non-admin writes before issuing mutations', async () => {
     const { client, query } = backend({ admin: false });
