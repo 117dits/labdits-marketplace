@@ -13,10 +13,13 @@ import { join } from 'node:path';
 const TMP_DIR = 'D:/hermes/cache/scratch/videos';
 const OUT_DIR = 'D:/Projects/labdits-marketplace/public/previews';
 
-async function transcodeToMp4(webmPath, mp4Path) {
+async function transcodeToMp4(webmPath, mp4Path, trimStartSec = 0) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', [
-      '-y',
+    const args = ['-y'];
+    if (trimStartSec > 0.3) {
+      args.push('-ss', trimStartSec.toFixed(2));
+    }
+    args.push(
       '-i', webmPath,
       '-c:v', 'libx264',
       '-pix_fmt', 'yuv420p',
@@ -26,7 +29,8 @@ async function transcodeToMp4(webmPath, mp4Path) {
       '-movflags', '+faststart',
       '-an',
       mp4Path
-    ]);
+    );
+    const proc = spawn('ffmpeg', args);
     let stderr = '';
     proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
     proc.on('close', code => {
@@ -44,6 +48,7 @@ async function recordDashboard(browser, id) {
   console.log(`\n========================================`);
   console.log(`[${id}/18] Recording interactive preview for: ${url}`);
 
+  const contextStartTime = Date.now();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1,
@@ -56,12 +61,18 @@ async function recordDashboard(browser, id) {
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(1200);
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 35000 }).catch(async () => {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    });
+    // Wait for initial animations, preloaders and layout to settle completely
+    await page.waitForTimeout(2500);
 
-    // Save high-resolution thumbnail
-    await page.screenshot({ path: thumbPath, quality: 90 });
-    console.log(`  ✓ Saved thumbnail: ${thumbPath}`);
+    const readyTimestamp = Date.now();
+    const trimStartSec = (readyTimestamp - contextStartTime) / 1000;
+
+    // Save high-resolution thumbnail at the exact moment the video will start
+    await page.screenshot({ path: thumbPath, quality: 95 });
+    console.log(`  ✓ Saved thumbnail (trimmed offset ${trimStartSec.toFixed(2)}s): ${thumbPath}`);
 
     // Inject virtual cursor overlay
     await page.evaluate(() => {
@@ -186,8 +197,8 @@ async function recordDashboard(browser, id) {
     await context.close();
 
     const webmPath = await videoObj.path();
-    console.log(`  Transcoding WebM to faststart MP4...`);
-    await transcodeToMp4(webmPath, mp4Path);
+    console.log(`  Transcoding WebM to faststart MP4 (trimming first ${trimStartSec.toFixed(2)}s)...`);
+    await transcodeToMp4(webmPath, mp4Path, trimStartSec);
     console.log(`  ✓ Successfully generated ${mp4Path}`);
 
     // Cleanup raw WebM
