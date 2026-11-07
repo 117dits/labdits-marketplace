@@ -22,10 +22,13 @@ export function createCatalogService(client: typeof supabase = supabase) {
       if (error) throw error;
       return (data ?? []).map(row => {
         const details = row.data as Partial<Product> & { image?: string };
+        const seed = seedProducts.find(p => p.id === row.id);
         // Keep the first snapshot: an open editor retains that baseline across refreshes.
         if (!loadedVideos.has(row.id)) loadedVideos.set(row.id, { video: details.previewVideoUrl, thumbnail: details.previewThumbnailUrl });
-        const image = details.image?.startsWith('seed:') ? seedProducts.find(p => p.id === row.id)?.image : details.image;
-        return { ...details, id: row.id, slug: row.slug, name: row.name, status: row.status, image } as Product;
+        const image = details.image?.startsWith('seed:') ? seed?.image : (details.image || seed?.image);
+        const previewVideoUrl = details.previewVideoUrl ?? seed?.previewVideoUrl;
+        const previewThumbnailUrl = details.previewThumbnailUrl ?? seed?.previewThumbnailUrl;
+        return { ...details, id: row.id, slug: row.slug, name: row.name, status: row.status, image, previewVideoUrl, previewThumbnailUrl } as Product;
       });
     },
     async settings(): Promise<Record<string, string>> {
