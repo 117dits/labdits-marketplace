@@ -27,6 +27,11 @@ import {
   Download,
   Info,
   TrendingUp,
+  CheckCircle,
+  MessageCircle,
+  QrCode,
+  Landmark,
+  ShieldCheck,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
@@ -496,7 +501,7 @@ export function AdminProducts() {
   );
 }
 export function OrdersTable({ orders }: { orders: Order[] }) {
-  const { products } = useMarketplace();
+  const { products, updateOrderStatus, deleteOrder } = useMarketplace();
   const [selected, setSelected] = useState<Order | null>(null);
   return (
     <>
@@ -510,16 +515,19 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
               <th>Total Biaya</th>
               <th>Status</th>
               <th>Tanggal</th>
-              <th />
+              <th className="text-right">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {orders.map((o) => (
               <tr key={o.id}>
-                <td className="font-mono text-[11px]">{o.id}</td>
+                <td className="font-mono text-[11px] font-semibold">{o.id}</td>
                 <td>
-                  {o.customer.name}
-                  <p className="mt-1 text-[10px] text-muted-foreground">{o.customer.email}</p>
+                  <div className="font-medium">{o.customer.name}</div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{o.customer.email}</p>
+                  {o.customer.whatsapp && (
+                    <p className="text-[10px] text-emerald-500 font-mono">WA: {o.customer.whatsapp}</p>
+                  )}
                 </td>
                 <td>
                   {o.items
@@ -528,33 +536,52 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
                     )
                     .join(", ")}
                 </td>
-                <td>{money(o.total)}</td>
+                <td className="font-semibold">{money(o.total)}</td>
                 <td>
                   <span
                     className={`status ${o.status === "Pending" ? "status-pending" : "status-positive"}`}
                   >
-                    {o.status}
+                    {o.status === "Pending" ? "Menunggu Acc" : "Lunas / Acc"}
                   </span>
                 </td>
                 <td className="text-muted-foreground">{o.date}</td>
                 <td>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Lihat pesanan ${o.id}`}
-                    onClick={() => setSelected(o)}
-                  >
-                    <ArrowUpRight />
-                  </Button>
+                  <div className="flex items-center justify-end gap-1.5">
+                    {o.status === "Pending" && (
+                      <Button
+                        size="sm"
+                        className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateOrderStatus(o.id, "Paid");
+                          toast.success(`Pesanan ${o.id} berhasil disetujui (Acc)!`);
+                        }}
+                      >
+                        <CheckCircle className="mr-1 h-3.5 w-3.5" /> Acc
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Lihat pesanan ${o.id}`}
+                      onClick={() => setSelected(o)}
+                    >
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
         {!orders.length && (
-          <p className="p-8 text-center text-sm text-muted-foreground">
-            Tidak ada pesanan yang sesuai.
-          </p>
+          <div className="p-12 text-center text-sm text-muted-foreground">
+            <ShoppingBag className="mx-auto h-8 w-8 mb-2 opacity-40" />
+            <p className="font-medium">Belum ada pesanan masuk.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pesanan riil yang dibuat oleh pelanggan akan otomatis muncul di sini untuk verifikasi admin.
+            </p>
+          </div>
         )}
       </div>
       <AnimatePresence>
@@ -576,7 +603,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-header">
-                <h2>Pesanan {selected.id}</h2>
+                <h2>Rincian Pesanan {selected.id}</h2>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -586,25 +613,29 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
                   <X />
                 </Button>
               </div>
-              <span
-                className={`status ${selected.status === "Pending" ? "status-pending" : "status-positive"}`}
-              >
-                {selected.status}
-              </span>
+              <div className="mb-4">
+                <span
+                  className={`status ${selected.status === "Pending" ? "status-pending" : "status-positive"}`}
+                >
+                  {selected.status === "Pending" ? "Menunggu Verifikasi Bukti TF" : "Pembayaran Lunas (Telah Di-Acc)"}
+                </span>
+              </div>
               <div className="summary-row">
                 <span>Pelanggan</span>
-                <span>{selected.customer.name}</span>
+                <span className="font-medium">{selected.customer.name}</span>
               </div>
               <div className="summary-row">
                 <span>Email</span>
                 <span className="break-all">{selected.customer.email}</span>
               </div>
               <div className="summary-row">
-                <span>WhatsApp</span>
-                <span>{selected.customer.whatsapp || "Tidak tersedia"}</span>
+                <span>WhatsApp Pembeli</span>
+                <span className="font-mono font-medium text-foreground">
+                  {selected.customer.whatsapp || "Tidak tersedia"}
+                </span>
               </div>
               <div className="summary-row">
-                <span>Metode</span>
+                <span>Metode Pembayaran</span>
                 <span>{selected.paymentMethod}</span>
               </div>
               <div className="summary-row">
@@ -620,12 +651,85 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
                 </div>
               ))}
               <div className="summary-row summary-total">
-                <span>Total</span>
-                <strong>{money(selected.total)}</strong>
+                <span>Total Pembayaran</span>
+                <strong className="text-primary text-base">{money(selected.total)}</strong>
               </div>
-              <div className="notice mt-5">
-                <Info />
-                Pesanan simulasi. Pembayaran dan lisensi belum diverifikasi secara nyata.
+
+              {/* Admin Actions */}
+              <div className="mt-6 flex flex-col gap-2.5 pt-4 border-t border-border">
+                {selected.status === "Pending" ? (
+                  <Button
+                    size="lg"
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                    onClick={() => {
+                      updateOrderStatus(selected.id, "Paid");
+                      setSelected({ ...selected, status: "Paid" });
+                      toast.success(`Pesanan ${selected.id} berhasil disetujui (Acc)!`);
+                    }}
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" /> Setujui & Acc Pembayaran (Lunas)
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs text-muted-foreground"
+                    onClick={() => {
+                      updateOrderStatus(selected.id, "Pending");
+                      setSelected({ ...selected, status: "Pending" });
+                      toast.info(`Status pesanan ${selected.id} dikembalikan ke Pending.`);
+                    }}
+                  >
+                    Kembalikan Status ke Pending
+                  </Button>
+                )}
+
+                {selected.customer.whatsapp && (
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="w-full border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                  >
+                    <a
+                      href={`https://wa.me/${selected.customer.whatsapp.replace(/\D/g, "").replace(/^0/, "62")}?text=${encodeURIComponent(
+                        `Halo ${selected.customer.name}, ini Admin DITSSTORE mengenai konfirmasi pembayaran pesanan #${selected.id}:`,
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <MessageCircle className="mr-2 h-4 w-4" /> Hubungi Pembeli via WhatsApp
+                    </a>
+                  </Button>
+                )}
+
+                <div className="flex gap-2 mt-1">
+                  {selected.status !== "Cancelled" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        updateOrderStatus(selected.id, "Cancelled");
+                        setSelected({ ...selected, status: "Cancelled" });
+                        toast.error(`Pesanan ${selected.id} dibatalkan.`);
+                      }}
+                    >
+                      Batalkan Pesanan
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      deleteOrder(selected.id);
+                      setSelected(null);
+                      toast.success(`Pesanan ${selected.id} dihapus.`);
+                    }}
+                  >
+                    <Trash2 className="mr-1 h-3.5 w-3.5" /> Hapus
+                  </Button>
+                </div>
               </div>
             </motion.section>
           </motion.div>
@@ -635,22 +739,110 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
   );
 }
 export function AdminOrders() {
-  const { orders } = useMarketplace();
+  const { orders, products, placeOrder, clearOrders } = useMarketplace();
   const [query, setQuery] = useState(""),
     [status, setStatus] = useState("all");
+  const [showManualModal, setShowManualModal] = useState(false);
+
+  // Manual order form state
+  const [mName, setMName] = useState("");
+  const [mEmail, setMEmail] = useState("");
+  const [mWa, setMWa] = useState("");
+  const [mProductId, setMProductId] = useState(products[0]?.id || "1");
+  const [mLicense, setMLicense] = useState<"personal" | "commercial" | "installation">("personal");
+  const [mStatus, setMStatus] = useState<"Paid" | "Pending">("Paid");
+
+  const handleCreateManualOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mEmail.trim()) {
+      toast.error("Alamat email pembeli wajib diisi!");
+      return;
+    }
+    const product = products.find((p) => p.id === mProductId);
+    const amount = product
+      ? mLicense === "commercial"
+        ? product.commercialPrice
+        : mLicense === "installation"
+          ? product.installationPrice
+          : product.price
+      : 149000;
+
+    const manualOrder: Order = {
+      id: `INV-${Date.now().toString().slice(-6)}`,
+      customer: {
+        id: "cust_" + Date.now().toString().slice(-4),
+        name: mName.trim() || "Pelanggan",
+        email: mEmail.trim(),
+        whatsapp: mWa.trim() || "-",
+        status: "Active",
+      },
+      items: [
+        {
+          productId: mProductId,
+          license: mLicense,
+          quantity: 1,
+        },
+      ],
+      total: amount,
+      date: new Date().toISOString().slice(0, 10),
+      paymentMethod: "QRIS Manual (DITSSTORE)",
+      status: mStatus,
+      simulated: false,
+    };
+
+    placeOrder(manualOrder);
+    setShowManualModal(false);
+    toast.success(`Pesanan #${manualOrder.id} berhasil dicatat ${mStatus === "Paid" ? "dan langsung di-Acc!" : "dengan status Menunggu Acc."}`);
+    setMName("");
+    setMEmail("");
+    setMWa("");
+  };
+
+  const handleClearAllOrders = () => {
+    if (confirm("Apakah Anda yakin ingin menghapus seluruh riwayat pesanan? Data pesanan yang sudah ada akan dibersihkan.")) {
+      clearOrders();
+      toast.success("Seluruh riwayat pesanan berhasil dikosongkan.");
+    }
+  };
+
   return (
     <DashboardLayout owner title="Pesanan">
-      <AdminHeading
-        title="Daftar Pesanan & Transaksi"
-        description="Ringkasan riwayat transaksi pelanggan, status pembayaran, dan invoice resmi."
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <div className="eyebrow mb-2">LABDITS / OWNER WORKSPACE</div>
+          <h1 className="text-2xl font-bold">Daftar Pesanan & Transaksi</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Verifikasi bukti transfer WhatsApp, berikan Acc persetujuan unduhan, atau catat pesanan baru.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            className="btn-hover-lift bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+            onClick={() => setShowManualModal(true)}
+          >
+            <Plus className="mr-1.5 h-4 w-4" /> Catat Pesanan Manual
+          </Button>
+          {orders.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs text-destructive hover:bg-destructive/10"
+              onClick={handleClearAllOrders}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Kosongkan Pesanan
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="market-toolbar">
         <div className="search-field">
           <Search />
           <input
             className="form-input"
             aria-label="Cari pesanan"
-            placeholder="Cari pesanan atau pelanggan..."
+            placeholder="Cari nomor pesanan, nama, atau email pembeli..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -661,22 +853,153 @@ export function AdminOrders() {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="all">Semua Pembayaran</option>
-          <option value="Paid">Lunas</option>
-          <option value="Pending">Menunggu Pembayaran</option>
+          <option value="all">Semua Status ({orders.length})</option>
+          <option value="Pending">Menunggu Acc ({orders.filter((o) => o.status === "Pending").length})</option>
+          <option value="Paid">Lunas / Di-Acc ({orders.filter((o) => o.status === "Paid").length})</option>
+          <option value="Cancelled">Dibatalkan ({orders.filter((o) => o.status === "Cancelled").length})</option>
         </select>
       </div>
+
       <div className="panel p-0">
         <OrdersTable
           orders={orders.filter(
             (o) =>
               (status === "all" || o.status === status) &&
-              `${o.id} ${o.customer.name} ${o.customer.email}`
+              `${o.id} ${o.customer.name} ${o.customer.email} ${o.customer.whatsapp || ""}`
                 .toLowerCase()
                 .includes(query.toLowerCase()),
           )}
         />
       </div>
+
+      {/* Modal: Tambah Pesanan Manual */}
+      <AnimatePresence>
+        {showManualModal && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowManualModal(false)}
+          >
+            <motion.section
+              className="modal max-w-lg"
+              role="dialog"
+              aria-modal="true"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2>Catat Pesanan Manual (WhatsApp)</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowManualModal(false)}
+                >
+                  <X />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Gunakan formulir ini jika pembeli mentransfer langsung via WhatsApp untuk segera memberikan lisensi dan hak unduhan source code.
+              </p>
+              <form className="form-stack" onSubmit={handleCreateManualOrder}>
+                <div className="field">
+                  <label htmlFor="m-name">Nama Pembeli</label>
+                  <input
+                    id="m-name"
+                    className="form-input"
+                    required
+                    placeholder="Nama pelanggan"
+                    value={mName}
+                    onChange={(e) => setMName(e.target.value)}
+                  />
+                </div>
+                <div className="form-grid">
+                  <div className="field">
+                    <label htmlFor="m-email">Email Pembeli (Akun Login)</label>
+                    <input
+                      id="m-email"
+                      type="email"
+                      className="form-input"
+                      required
+                      placeholder="email@pembeli.com"
+                      value={mEmail}
+                      onChange={(e) => setMEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="m-wa">Nomor WhatsApp</label>
+                    <input
+                      id="m-wa"
+                      className="form-input"
+                      placeholder="08xxxxxxxxxx"
+                      value={mWa}
+                      onChange={(e) => setMWa(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="m-prod">Pilih Produk</label>
+                  <select
+                    id="m-prod"
+                    className="form-input"
+                    value={mProductId}
+                    onChange={(e) => setMProductId(e.target.value)}
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.category}) — {money(p.price)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-grid">
+                  <div className="field">
+                    <label htmlFor="m-lic">Jenis Lisensi</label>
+                    <select
+                      id="m-lic"
+                      className="form-input"
+                      value={mLicense}
+                      onChange={(e) => setMLicense(e.target.value as any)}
+                    >
+                      <option value="personal">Personal License</option>
+                      <option value="commercial">Commercial License</option>
+                      <option value="installation">Full Installation</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="m-status">Status Pembayaran</label>
+                    <select
+                      id="m-status"
+                      className="form-input font-medium"
+                      value={mStatus}
+                      onChange={(e) => setMStatus(e.target.value as any)}
+                    >
+                      <option value="Paid">Lunas (Langsung Acc & Buka Akses)</option>
+                      <option value="Pending">Menunggu Pembayaran (Pending)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex gap-2">
+                  <Button type="submit" size="lg" className="flex-1 btn-hover-lift">
+                    <CheckCircle className="mr-2 h-4 w-4" /> Simpan & Proses Pesanan
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setShowManualModal(false)}
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </form>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 }
@@ -948,26 +1271,126 @@ export function AdminSettings() {
           </div>
         ) : tab === "Konfigurasi Pembayaran" ? (
           <div className="form-stack">
-            <div className="notice">
-              <Info />
-              Pilihan ini hanya preferensi tampilan. Integrasi pembayaran nyata memerlukan backend terverifikasi; alur saat ini dapat menggunakan transaksi simulasi. Jangan masukkan kredensial rahasia di frontend publik.
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs leading-relaxed">
+              <div className="flex items-center gap-2 font-semibold text-sm text-primary mb-1">
+                <ShieldCheck className="h-4 w-4" /> Alur Transaksi Toko DITSSTORE
+              </div>
+              <p className="text-muted-foreground">
+                Pilih apakah toko menerima pembayaran secara <strong>Manual (QRIS & SeaBank via WhatsApp)</strong> atau <strong>Otomatis (Payment Gateway)</strong>. Pada mode Manual, pembeli mengonfirmasi bukti transfer langsung ke WhatsApp admin dan admin meng-acc transaksi melalui menu Pesanan.
+              </p>
             </div>
+
             <div className="field">
-              <label>Penyedia Pembayaran Terpilih</label>
+              <label htmlFor="payment_mode" className="font-semibold">
+                Metode Pembayaran Utama Toko
+              </label>
               <select
-                className="form-input"
-                name="provider"
-                defaultValue={store.settings['provider'] || "Belum dikonfigurasi"}
+                id="payment_mode"
+                className="form-input font-medium"
+                name="payment_mode"
+                defaultValue={store.settings['payment_mode'] || "manual"}
               >
-                <option>Belum dikonfigurasi</option>
-                <option>Pakasir — memerlukan backend</option>
-                <option>Midtrans — integrasi mendatang</option>
-                <option>Xendit — integrasi mendatang</option>
+                <option value="manual">
+                  Manual — QRIS & Bank Transfer (Kirim Bukti TF via WhatsApp ke Admin)
+                </option>
+                <option value="automatic">
+                  Otomatis — Payment Gateway (QRIS Otomatis / Virtual Account)
+                </option>
               </select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Atur ke "Manual" agar pembeli membayar via scan QRIS DITSSTORE dan transfer SeaBank.
+              </p>
             </div>
+
             <div className="field">
-              <label>Mode Transaksi</label>
-              <input className="form-input" disabled value="Simulasi; verifikasi pembayaran server belum tersedia" />
+              <label htmlFor="admin_whatsapp" className="font-semibold">
+                Nomor WhatsApp Admin (Penerima Bukti TF)
+              </label>
+              <input
+                id="admin_whatsapp"
+                name="admin_whatsapp"
+                className="form-input font-mono"
+                defaultValue={store.settings['admin_whatsapp'] || "085882846665"}
+                placeholder="085882846665"
+                required
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Nomor ini akan otomatis dihubungi oleh pembeli saat menekan tombol "Kirim Bukti Pembayaran ke WhatsApp Admin".
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-border">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <QrCode className="h-4 w-4 text-primary" /> Pengaturan QRIS Manual DITSSTORE
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="field">
+                  <label htmlFor="qris_merchant">Nama Merchant QRIS</label>
+                  <input
+                    id="qris_merchant"
+                    name="qris_merchant"
+                    className="form-input"
+                    defaultValue={store.settings['qris_merchant'] || "DITSSTORE - SOFTWARE"}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="qris_nmid">NMID QRIS</label>
+                  <input
+                    id="qris_nmid"
+                    name="qris_nmid"
+                    className="form-input font-mono"
+                    defaultValue={store.settings['qris_nmid'] || "ID1026491254490"}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-4 rounded-lg border border-border p-3 bg-secondary/20">
+                <img
+                  src="/payments/qris-ditsstore.jpg"
+                  alt="Banner QRIS"
+                  className="h-16 w-16 rounded object-cover border border-border bg-black"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold block">Banner Pembayaran Terpasang</span>
+                  <p className="text-muted-foreground text-[11px] mt-0.5">
+                    File: <code className="font-mono">/payments/qris-ditsstore.jpg</code> (QRIS & SeaBank DITSSTORE)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Landmark className="h-4 w-4 text-primary" /> Pengaturan Rekening Bank (SeaBank)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="field">
+                  <label htmlFor="bank_name">Nama Bank</label>
+                  <input
+                    id="bank_name"
+                    name="bank_name"
+                    className="form-input"
+                    defaultValue={store.settings['bank_name'] || "SeaBank"}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="bank_account_number">Nomor Rekening</label>
+                  <input
+                    id="bank_account_number"
+                    name="bank_account_number"
+                    className="form-input font-mono"
+                    defaultValue={store.settings['bank_account_number'] || "9014 7615 4832"}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="bank_account_name">Atas Nama Rekening</label>
+                  <input
+                    id="bank_account_name"
+                    name="bank_account_name"
+                    className="form-input"
+                    defaultValue={store.settings['bank_account_name'] || "Muhammad Raditya Anwar"}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         ) : (

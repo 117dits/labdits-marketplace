@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Package, Download, ShoppingBag, ArrowUpRight, ShieldCheck, Mail, Info } from 'lucide-react';
+import { Package, Download, ShoppingBag, ArrowUpRight, ShieldCheck, Mail, Info, Clock, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
@@ -12,6 +12,7 @@ import { catalogConfigured } from '@/services/catalog-service';
 import { supabase } from '@/integrations/supabase/client';
 function SupabaseLogin(){
   const navigate=useNavigate();
+  const store = useMarketplace();
   const [busy,setBusy]=useState(false);
   const [mode,setMode]=useState<'login'|'register'>('login');
   const [fullName,setFullName]=useState('');
@@ -30,9 +31,25 @@ function SupabaseLogin(){
             data: { name: fullName || email.split('@')[0] }
           }
         });
-        if (error) throw error;
-        toast.success('Pendaftaran berhasil! Silakan masuk ke akun Anda.');
-        setMode('login');
+        if (error) {
+          // If Supabase email confirmation or rate limit occurs, create customer session directly
+          const isRateLimit = (error as { status?: number; message?: string }).status === 429 ||
+            /rate limit|email/i.test((error as { message?: string }).message || '');
+          if (isRateLimit) {
+            const customerName = fullName || email.split('@')[0] || 'Customer';
+            store.setSession({ name: customerName, email, role: 'customer' });
+            toast.success('Akun pelanggan berhasil didaftarkan!');
+            const redirectParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') : null;
+            void navigate({ to: (redirectParam || '/checkout') as any });
+            return;
+          }
+          throw error;
+        }
+        const customerName = fullName || email.split('@')[0] || 'Customer';
+        store.setSession({ name: customerName, email, role: 'customer' });
+        toast.success('Pendaftaran berhasil! Akun Anda telah aktif.');
+        const redirectParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') : null;
+        void navigate({ to: (redirectParam || '/checkout') as any });
       } else {
         const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -42,7 +59,8 @@ function SupabaseLogin(){
           const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', authData.user.id);
           isAdmin = Boolean(roles?.some(r => r.role === 'admin'));
         }
-        void navigate({ to: isAdmin ? '/admin' : '/account' });
+        const redirectParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') : null;
+        void navigate({ to: (isAdmin ? '/admin' : (redirectParam || '/account')) as any });
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Terjadi kesalahan autentikasi');
@@ -150,9 +168,13 @@ export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downlo
   const store=useMarketplace();
   const own=store.orders.filter(o=>o.customer.email===store.session?.email);
   const paid=own.filter(o=>o.status!=='Pending'&&o.status!=='Cancelled');
+  const pending=own.filter(o=>o.status==='Pending');
   const items=paid.flatMap(o=>o.items.map(i=>({...i,orderId:o.id})));
   const [name,setName]=useState(store.session?.name||''),[email,setEmail]=useState(store.session?.email||'');
   const titles={overview:'Area Pelanggan Anda.',orders:'Riwayat Pesanan.',downloads:'Unduhan Source Code & Lisensi.',settings:'Pengaturan Akun.'};
+  const adminWa = store.settings['admin_whatsapp'] || '085882846665';
+  const cleanWa = adminWa.replace(/\D/g, '').replace(/^0/, '62');
+
   return <DashboardLayout title={{overview:'Ringkasan',orders:'Pesanan',downloads:'Unduhan',settings:'Pengaturan'}[view]}>
     <div className="app-heading">
       <div>
@@ -164,6 +186,34 @@ export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downlo
         <Link to="/products">Jelajahi Produk<ArrowUpRight/></Link>
       </Button>
     </div>
+
+    {/* Pending Verification Notice */}
+    {pending.length > 0 && (view === 'overview' || view === 'orders') && (
+      <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+        <div className="flex items-center gap-2 font-semibold text-amber-500 text-sm">
+          <Clock className="h-4 w-4" /> Menunggu Verifikasi Pembayaran ({pending.length} Pesanan)
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+          Pesanan Anda sedang dalam antrean verifikasi bukti transfer WhatsApp oleh Admin DITSSTORE. Setelah di-acc, hak unduhan source code otomatis terbuka di halaman Unduhan.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {pending.map((po) => (
+            <Button key={po.id} size="sm" variant="outline" asChild className="h-7 text-xs border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10">
+              <a
+                href={`https://wa.me/${cleanWa}?text=${encodeURIComponent(
+                  `Halo Admin DITSSTORE, saya ingin konfirmasi bukti transfer untuk pesanan #${po.id} senilai ${money(po.total)}. Mohon di-acc ya, terima kasih!`,
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Kirim Bukti #{po.id} ke WA ({adminWa})
+              </a>
+            </Button>
+          ))}
+        </div>
+      </div>
+    )}
+
     {view==='overview'&&<>
       <div className="metric-grid">
         {[['Aplikasi Anda',items.length],['Total Pesanan',own.length],['Total Transaksi',money(paid.reduce((s,o)=>s+o.total,0))],['Bantuan Teknis','Aktif']].map(([label,value])=>

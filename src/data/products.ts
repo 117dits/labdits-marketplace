@@ -322,6 +322,6 @@ export const seedProducts: Product[] = [
     'https://labdits-18.vercel.app'
   )
 ];
-export const seedCustomers: [Customer, Customer, Customer] = [{ id:'c1', name:'Aditya Pratama', email:'aditya@example.com', whatsapp:'081234567890', status:'Active' }, { id:'c2', name:'Sarah Wijaya', email:'sarah@example.com', whatsapp:'081298765432', status:'Active' }, { id:'c3', name:'Bima Santoso', email:'bima@example.com', whatsapp:'081211223344', status:'Inactive' }];
-export const seedOrders: Order[] = [{ id:'LAB-1042', customer:seedCustomers[0], items:[{ productId:'1', license:'commercial', quantity:1 }], total:1798000, date:'2026-10-10', paymentMethod:'QRIS', status:'Paid', simulated:false },{ id:'LAB-1041', customer:seedCustomers[1], items:[{ productId:'2', license:'personal', quantity:1 }], total:1499000, date:'2026-10-09', paymentMethod:'Virtual Account', status:'Paid', simulated:false },{ id:'LAB-1040', customer:seedCustomers[2], items:[{ productId:'3', license:'personal', quantity:1 }], total:1299000, date:'2026-10-08', paymentMethod:'Bank Transfer', status:'Paid', simulated:false }];
+export const seedCustomers: Customer[] = [];
+export const seedOrders: Order[] = [];
 export const chartData = [{ name:'Mei', revenue:18, views:2100 },{ name:'Jun', revenue:26, views:3200 },{ name:'Jul', revenue:22, views:2900 },{ name:'Agu', revenue:41, views:4700 },{ name:'Sep', revenue:35, views:4100 },{ name:'Okt', revenue:57, views:6200 }];

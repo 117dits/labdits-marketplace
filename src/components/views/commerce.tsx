@@ -1,6 +1,25 @@
-import { useState } from 'react';
+import { useState, useId, useEffect } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowRight, ShoppingBag, Trash2, ShieldCheck, Info, CheckCircle2, Download, CreditCard, QrCode, Landmark, Wallet, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
+import {
+  ArrowRight,
+  ShoppingBag,
+  Trash2,
+  ShieldCheck,
+  Info,
+  CheckCircle2,
+  Download,
+  CreditCard,
+  QrCode,
+  Landmark,
+  Wallet,
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Lock,
+  MessageCircle,
+  Clock,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { PageHeading } from '@/components/views/marketplace';
@@ -8,14 +27,15 @@ import { useMarketplace } from '@/hooks/use-marketplace';
 import { money, licenseNames, priceFor } from '@/data/products';
 import { createPakasirTransaction, type PakasirCreateResponse } from '@/services/pakasir-service';
 import { QrCodeDisplay } from '@/components/ui/qr-code';
-import type { License } from '@/types';
-export function OrderSummary({checkout=false}:{checkout?:boolean}){
+import type { License, Order } from '@/types';
+
+export function OrderSummary({ checkout = false }: { checkout?: boolean }) {
   const store = useMarketplace();
   return (
     <aside className="panel">
       <h2>Ringkasan Pesanan</h2>
       {store.cart.map((i, n) => {
-        const p = store.products.find(p => p.id === i.productId);
+        const p = store.products.find((p) => p.id === i.productId);
         return p ? (
           <div className="summary-row" key={n}>
             <div>
@@ -42,14 +62,20 @@ export function OrderSummary({checkout=false}:{checkout?:boolean}){
       </div>
       {!checkout && (
         <Button asChild className="mt-3 w-full btn-hover-lift">
-          <Link to="/checkout">
-            Lanjut ke Pembayaran <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
+          {store.session ? (
+            <Link to="/checkout">
+              Lanjut ke Pembayaran <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          ) : (
+            <Link to="/login" search={{ redirect: '/checkout' }}>
+              Masuk untuk Checkout <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          )}
         </Button>
       )}
       <div className="notice mt-5">
         <ShieldCheck className="h-4 w-4 text-success" />
-        Transaksi aman dan diverifikasi langsung secara real-time.
+        Transaksi resmi, aman, dan lisensi terikat langsung ke akun Anda.
       </div>
     </aside>
   );
@@ -64,6 +90,21 @@ export function Cart(){
         description={`${store.cart.length} produk siap untuk diunduh dan diluncurkan.`}
       />
       <div className="page-body">
+        {!store.session && store.cart.length > 0 && (
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/10 p-4">
+            <div className="flex items-center gap-3">
+              <Lock className="h-5 w-5 text-primary shrink-0" />
+              <p className="text-sm text-foreground">
+                Anda belum masuk. Silakan <strong>login</strong> terlebih dahulu sebelum checkout agar lisensi otomatis terkait dengan akun Anda.
+              </p>
+            </div>
+            <Button size="sm" asChild className="shrink-0 btn-hover-lift">
+              <Link to="/login" search={{ redirect: '/checkout' }}>
+                Masuk Sekarang
+              </Link>
+            </Button>
+          </div>
+        )}
         {!store.cart.length ? (
           <div className="empty-state">
             <ShoppingBag />
@@ -160,80 +201,221 @@ export function Cart(){
     </div>
   );
 }
-export function Checkout(){
+export function Checkout() {
   const store = useMarketplace();
   const navigate = useNavigate();
-  const [method, setMethod] = useState<'QRIS' | 'Virtual Account' | 'E-Wallet' | 'Bank Transfer'>('QRIS');
-  const [busy, setBusy] = useState(false);
-  const [pakasirData, setPakasirData] = useState<PakasirCreateResponse | null>(null);
-  const [copied, setCopied] = useState(false);
 
-  if (!store.cart.length)
+  // Settings
+  const paymentMode = store.settings['payment_mode'] || 'manual';
+  const adminWhatsapp = store.settings['admin_whatsapp'] || '085882846665';
+  const cleanAdminWa = adminWhatsapp.replace(/\D/g, '').replace(/^0/, '62');
+  const qrisNmid = store.settings['qris_nmid'] || 'ID1026491254490';
+  const qrisMerchant = store.settings['qris_merchant'] || 'DITSSTORE - SOFTWARE';
+  const bankName = store.settings['bank_name'] || 'SeaBank';
+  const bankNumber = store.settings['bank_account_number'] || '9014 7615 4832';
+  const bankHolder = store.settings['bank_account_name'] || 'Muhammad Raditya Anwar';
+
+  // State
+  const [orderId] = useState(() => `INV-${Date.now().toString().slice(-6)}`);
+  const [buyerName, setBuyerName] = useState(store.session?.name || '');
+  const [buyerEmail, setBuyerEmail] = useState(store.session?.email || '');
+  const [buyerWa, setBuyerWa] = useState('');
+  const [copiedRekening, setCopiedRekening] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (store.session) {
+      if (!buyerName && store.session.name) setBuyerName(store.session.name);
+      if (!buyerEmail && store.session.email) setBuyerEmail(store.session.email);
+    }
+  }, [store.session]);
+
+  // Automatic gateway state (if enabled)
+  const [autoMethod, setAutoMethod] = useState<'QRIS' | 'Virtual Account' | 'E-Wallet' | 'Bank Transfer'>('QRIS');
+  const [pakasirData, setPakasirData] = useState<PakasirCreateResponse | null>(null);
+
+  // Loading state during initial hydration
+  if (!store.hydrated) {
+    return (
+      <div className="site-container py-24 text-center">
+        <div className="mx-auto max-w-md panel">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <h2 className="text-lg font-semibold">Memuat Data Pembayaran...</h2>
+          <p className="mt-2 text-xs text-muted-foreground">Menghubungkan ke layanan checkout LABDITS.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Guard 1: Empty cart
+  if (!store.cart.length) {
     return (
       <div className="site-container py-20">
         <div className="empty-state">
           <ShoppingBag />
           <h2>Keranjang belanja Anda masih kosong.</h2>
           <p>Pilih produk terlebih dahulu untuk melanjutkan proses pembayaran.</p>
-          <Button asChild>
+          <Button asChild className="btn-hover-lift">
             <Link to="/products">Jelajahi Produk</Link>
           </Button>
         </div>
       </div>
     );
+  }
 
-  const handleStartPayment = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Guard 2: Must be logged in before purchasing
+  if (!store.session) {
+    return (
+      <div className="site-container py-16">
+        <div className="mx-auto max-w-lg panel text-center py-12 px-6">
+          <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-primary/10 text-primary">
+            <Lock className="h-8 w-8" />
+          </div>
+          <div className="eyebrow justify-center mb-2">Autentikasi Diperlukan</div>
+          <h1 className="text-2xl font-bold">Wajib Masuk Sebelum Membeli</h1>
+          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+            Untuk menerbitkan invoice resmi, mencatat lisensi software, dan mengamankan akses unduhan source code aplikasi di dashboard Anda, Anda wajib memiliki akun aktif.
+          </p>
+          <div className="mt-8 flex flex-col gap-3">
+            <Button asChild size="lg" className="w-full btn-hover-lift">
+              <Link to="/login" search={{ redirect: '/checkout' }}>
+                Masuk ke Akun Saya <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button variant="outline" asChild size="lg" className="w-full">
+              <Link to="/login" search={{ redirect: '/checkout' }}>
+                Daftar Akun Baru
+              </Link>
+            </Button>
+          </div>
+          <div className="mt-6 pt-5 border-t border-border flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 text-success" />
+            Akses unduhan instan langsung aktif setelah verifikasi pembayaran.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Build WhatsApp report template
+  const itemsText = store.cart
+    .map((item) => {
+      const p = store.products.find((x) => x.id === item.productId);
+      return `• ${p?.name || 'Produk'} (${licenseNames[item.license]} · ${item.quantity}x) = ${money(
+        (p ? priceFor(p, item.license) : 0) * item.quantity,
+      )}`;
+    })
+    .join('\n');
+
+  const waMessage = `Halo Admin DITSSTORE, saya ingin konfirmasi pembayaran pesanan template:
+
+No. Invoice: ${orderId}
+Nama Pembeli: ${buyerName || store.session?.name}
+Email: ${buyerEmail || store.session?.email}
+WhatsApp: ${buyerWa || '-'}
+
+Rincian Pembelian:
+${itemsText}
+
+Total Pembayaran: ${money(store.total)}
+Metode Pembayaran: QRIS Manual DITSSTORE / SeaBank
+
+Saya telah melakukan pembayaran dan melampirkan foto bukti transfer pada chat ini. Mohon diverifikasi (acc) di dashboard admin agar akses unduhan source code segera aktif. Terima kasih!`;
+
+  const waUrl = `https://wa.me/${cleanAdminWa}?text=${encodeURIComponent(waMessage)}`;
+
+  const handleCopyRekening = () => {
+    navigator.clipboard.writeText(bankNumber.replace(/\s+/g, ''));
+    setCopiedRekening(true);
+    toast.success('Nomor rekening SeaBank berhasil disalin!');
+    setTimeout(() => setCopiedRekening(false), 2500);
+  };
+
+  const handleConfirmManualPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!buyerWa.trim()) {
+      toast.error('Mohon masukkan nomor WhatsApp Anda agar admin dapat mencocokkan pembayaran.');
+      return;
+    }
+
+    setBusy(true);
+    const newOrder: Order = {
+      id: orderId,
+      customer: {
+        id: 'cust_' + (store.session?.email?.replace(/[^a-zA-Z0-9]/g, '') || Date.now().toString().slice(-4)),
+        name: buyerName || store.session?.name || 'Pelanggan',
+        email: buyerEmail || store.session?.email || '',
+        whatsapp: buyerWa,
+        status: 'Active',
+      },
+      items: store.cart,
+      total: store.total,
+      date: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'QRIS Manual (DITSSTORE)',
+      status: 'Pending',
+      simulated: false,
+    };
+
+    await new Promise((r) => setTimeout(r, 400));
+    store.placeOrder(newOrder);
+    setBusy(false);
+    toast.success('Pesanan berhasil dibuat! Segera kirimkan bukti transfer ke WhatsApp admin.');
+    void navigate({ to: '/checkout/success' });
+  };
+
+  const handleStartAutomaticPayment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBusy(true);
-    const data = new FormData(e.currentTarget);
-    const orderId = `INV-${Date.now().toString().slice(-6)}`;
-    
     try {
-      // Call Pakasir Payment Gateway v2
-      const res = await createPakasirTransaction(orderId, store.total, method === 'QRIS' ? 'qris' : 'payment_link');
+      const res = await createPakasirTransaction(orderId, store.total, autoMethod === 'QRIS' ? 'qris' : 'payment_link');
       setPakasirData(res);
-      toast.success('Instruksi pembayaran Pakasir siap!');
+      toast.success('Instruksi pembayaran otomatis siap!');
     } catch {
-      toast.error('Gagal membuat tagihan Pakasir');
+      toast.error('Gagal membuat tagihan pembayaran otomatis');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleConfirmPaid = async () => {
+  const handleConfirmAutomaticPaid = async () => {
     setBusy(true);
-    const order = {
-      id: pakasirData?.order_id || `LAB-${Date.now().toString().slice(-6)}`,
+    const order: Order = {
+      id: pakasirData?.order_id || orderId,
       customer: {
-        id: 'cust_' + Date.now().toString().slice(-4),
-        name: store.session?.name || 'Customer LABDITS',
-        email: store.session?.email || 'customer@example.com',
-        whatsapp: '081234567890',
-        status: 'Active' as const,
+        id: 'cust_' + (store.session?.email?.replace(/[^a-zA-Z0-9]/g, '') || Date.now().toString().slice(-4)),
+        name: buyerName || store.session?.name || 'Customer LABDITS',
+        email: buyerEmail || store.session?.email || '',
+        whatsapp: buyerWa || '081234567890',
+        status: 'Active',
       },
       items: store.cart,
       total: pakasirData?.total_payment || store.total,
       date: new Date().toISOString().slice(0, 10),
-      paymentMethod: method,
-      status: 'Paid' as const,
+      paymentMethod: autoMethod,
+      status: 'Paid',
       simulated: false,
     };
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 500));
     store.placeOrder(order);
     toast.success('Pembayaran terkonfirmasi! Pesanan berhasil.');
-    navigate({ to: '/checkout/success' });
+    void navigate({ to: '/checkout/success' });
   };
 
   return (
     <div className="site-container">
       <PageHeading
         title="Selesaikan Pemesanan Anda."
-        eyebrow="Payment Gateway Pakasir"
-        description="Pembayaran otomatis, aman, dan instan menggunakan QRIS & Virtual Account Pakasir."
+        eyebrow={paymentMode === 'manual' ? 'Pembayaran QRIS & Transfer Bank' : 'Payment Gateway'}
+        description={
+          paymentMode === 'manual'
+            ? 'Scan QRIS DITSSTORE atau transfer SeaBank, lalu kirim bukti transfer ke WhatsApp admin.'
+            : 'Pembayaran otomatis, aman, dan instan menggunakan QRIS & Virtual Account.'
+        }
       />
       <div className="page-body two-column">
-        {!pakasirData ? (
-          <form className="form-stack" onSubmit={handleStartPayment}>
+        {paymentMode === 'manual' ? (
+          <form className="form-stack" onSubmit={handleConfirmManualPayment}>
+            {/* Customer Details */}
             <div className="panel">
               <h2>Informasi Pembeli</h2>
               <div className="form-stack">
@@ -244,113 +426,303 @@ export function Checkout(){
                     name="name"
                     className="form-input"
                     required
-                    placeholder="Nama lengkap Anda"
-                    defaultValue={store.session?.name}
+                    value={buyerName}
+                    onChange={(e) => setBuyerName(e.target.value)}
                   />
                 </div>
                 <div className="form-grid">
                   <div className="field">
-                    <label htmlFor="customer-email">Alamat Email</label>
+                    <label htmlFor="customer-email">Alamat Email Terdaftar</label>
                     <input
                       id="customer-email"
                       name="email"
                       type="email"
                       className="form-input"
                       required
-                      placeholder="nama@domain.com"
-                      defaultValue={store.session?.email}
+                      value={buyerEmail}
+                      onChange={(e) => setBuyerEmail(e.target.value)}
                     />
                   </div>
                   <div className="field">
-                    <label htmlFor="customer-whatsapp">Nomor WhatsApp</label>
+                    <label htmlFor="customer-whatsapp">Nomor WhatsApp Pembeli (Wajib)</label>
                     <input
                       id="customer-whatsapp"
                       name="whatsapp"
                       type="tel"
                       className="form-input"
-                      placeholder="08xxxxxxxxxx"
+                      placeholder="cth. 081234567890"
                       required
+                      value={buyerWa}
+                      onChange={(e) => setBuyerWa(e.target.value)}
                     />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Digunakan untuk mencocokkan konfirmasi chat transfer Anda dengan akun ini.
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* QRIS & SeaBank Presentation */}
             <div className="panel">
-              <h2>Pilih Metode Pembayaran (Pakasir)</h2>
-              <div className="payment-grid">
-                {[
-                  ['QRIS', QrCode],
-                  ['Virtual Account', Landmark],
-                  ['E-Wallet', Wallet],
-                  ['Bank Transfer', CreditCard],
-                ].map(([label, I]) => {
-                  const Icon = I as typeof QrCode;
-                  return (
-                    <Button
-                      key={String(label)}
-                      type="button"
-                      variant="ghost"
-                      className={`payment-option ${method === label ? 'payment-selected' : ''}`}
-                      onClick={() => setMethod(label as typeof method)}
-                      aria-pressed={method === label}
-                    >
-                      <Icon />
-                      {String(label)}
-                    </Button>
-                  );
-                })}
+              <div className="flex items-center justify-between">
+                <h2>Metode Pembayaran Resmi</h2>
+                <span className="font-mono text-xs text-primary font-semibold">{orderId}</span>
               </div>
-              <div className="notice mt-5">
-                <Info /> Terintegrasi langsung dengan Pakasir Payment Gateway. Mendukung semua aplikasi e-wallet & m-banking Indonesia via QRIS.
-              </div>
-            </div>
 
-            <Button type="submit" size="lg" disabled={busy} className="btn-hover-lift">
-              {busy ? <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Menyiapkan Pembayaran...</> : <>Lanjut ke Pembayaran Pakasir <ArrowRight /></>}
-            </Button>
-          </form>
-        ) : (
-          <div className="panel form-stack text-center">
-            <h2 className="text-xl font-bold">Bayar dengan {method}</h2>
-            <p className="text-sm text-muted-foreground">
-              Nomor Pesanan: <strong className="font-mono text-foreground">{pakasirData.order_id}</strong>
-            </p>
+              {/* QRIS Card with uploaded Banner */}
+              <div className="mt-4 rounded-xl border border-primary/20 bg-card p-5 text-center">
+                <div className="inline-block rounded-lg overflow-hidden border border-border shadow-md max-w-[280px] mx-auto bg-black">
+                  <img
+                    src="/payments/qris-ditsstore.jpg"
+                    alt="DITSSTORE QRIS Payment"
+                    className="w-full h-auto object-contain"
+                  />
+                </div>
 
-            {pakasirData.qr_string ? (
-              <div className="my-4 flex flex-col items-center">
-                <QrCodeDisplay text={pakasirData.qr_string} size={220} />
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Scan QRIS di atas dengan GoPay, OVO, Dana, ShopeePay, BCA, atau Livin Mandiri.
-                </p>
-                <div className="mt-4 flex items-center justify-between gap-4 rounded-lg bg-secondary/40 p-3 text-sm w-full max-w-sm">
-                  <span>Total Tagihan:</span>
-                  <strong className="text-base text-primary">{money(pakasirData.total_payment || store.total)}</strong>
+                <div className="mt-4 flex flex-col items-center">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                    <QrCode className="h-3.5 w-3.5" /> {qrisMerchant}
+                  </div>
+                  <p className="mt-2 text-xs font-mono text-muted-foreground">
+                    NMID: {qrisNmid} · A01
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Mendukung BCA, Mandiri, BRI, BNI, GoPay, OVO, Dana, ShopeePay, LinkAja.
+                  </p>
+                </div>
+
+                <div className="mt-5 rounded-lg bg-secondary/50 p-3 flex items-center justify-between text-sm">
+                  <span>Nominal yang Harus Ditransfer:</span>
+                  <strong className="text-base text-primary font-bold">{money(store.total)}</strong>
                 </div>
               </div>
-            ) : (
-              <div className="my-6 rounded-lg border border-border p-5 text-left">
-                <p className="text-xs text-muted-foreground">Link Pembayaran Pakasir:</p>
-                <a
-                  href={pakasirData.payment_link || '#'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
-                >
-                  Buka Halaman Pembayaran <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            )}
 
-            <div className="flex flex-col gap-2 pt-4 border-t border-border">
-              <Button onClick={handleConfirmPaid} disabled={busy} size="lg" className="w-full btn-hover-lift bg-success hover:bg-success/90 text-white">
-                {busy ? <Loader2 className="animate-spin h-4 w-4" /> : <><CheckCircle2 className="h-4 w-4 mr-2" /> Saya Sudah Membayar</>}
+              {/* Alternative SeaBank Option */}
+              <div className="mt-4 rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Landmark className="h-4 w-4 text-primary" />
+                    <span className="font-semibold text-sm">Opsi Transfer Bank ({bankName})</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={handleCopyRekening}
+                  >
+                    {copiedRekening ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedRekening ? 'Tersalin' : 'Salin No. Rekening'}
+                  </Button>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Nomor Rekening:</span>
+                    <p className="font-mono text-sm font-bold text-foreground mt-0.5">{bankNumber}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Atas Nama:</span>
+                    <p className="font-semibold text-sm text-foreground mt-0.5">{bankHolder}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="mt-5 rounded-lg bg-accent/40 p-4 text-xs leading-relaxed text-muted-foreground">
+                <strong className="text-foreground block mb-1">Langkah Pembayaran Manual:</strong>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Scan QRIS di atas atau transfer ke rekening SeaBank.</li>
+                  <li>Simpan screenshot / foto struk bukti transfer Anda.</li>
+                  <li>Klik tombol hijau <strong>"Kirim Bukti Pembayaran ke WhatsApp Admin"</strong> di bawah.</li>
+                  <li>Admin akan memverifikasi (acc) di dashboard, dan akses unduhan source code otomatis terbuka.</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-3">
+              <Button
+                type="button"
+                size="lg"
+                className="w-full btn-hover-lift bg-[#25D366] hover:bg-[#20ba59] text-white font-semibold text-sm"
+                onClick={() => {
+                  if (!buyerWa.trim()) {
+                    toast.error('Mohon isi nomor WhatsApp pembeli terlebih dahulu di formulir atas.');
+                    return;
+                  }
+                  window.open(waUrl, '_blank');
+                  toast.success('Membuka WhatsApp Admin...');
+                }}
+              >
+                <MessageCircle className="mr-2 h-5 w-5" />
+                1. Kirim Bukti Pembayaran ke WhatsApp Admin ({adminWhatsapp})
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setPakasirData(null)}>
-                Ganti Metode Pembayaran
+
+              <Button
+                type="submit"
+                size="lg"
+                disabled={busy}
+                className="w-full btn-hover-lift bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" /> Memproses Pesanan...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    2. Saya Sudah Mengirim Bukti Transfer ke WhatsApp
+                  </>
+                )}
               </Button>
             </div>
-          </div>
+          </form>
+        ) : (
+          /* Automatic Gateway Mode */
+          !pakasirData ? (
+            <form className="form-stack" onSubmit={handleStartAutomaticPayment}>
+              <div className="panel">
+                <h2>Informasi Pembeli</h2>
+                <div className="form-stack">
+                  <div className="field">
+                    <label htmlFor="auto-customer-name">Nama Lengkap</label>
+                    <input
+                      id="auto-customer-name"
+                      name="name"
+                      className="form-input"
+                      required
+                      value={buyerName}
+                      onChange={(e) => setBuyerName(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-grid">
+                    <div className="field">
+                      <label htmlFor="auto-customer-email">Alamat Email</label>
+                      <input
+                        id="auto-customer-email"
+                        name="email"
+                        type="email"
+                        className="form-input"
+                        required
+                        value={buyerEmail}
+                        onChange={(e) => setBuyerEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="auto-customer-whatsapp">Nomor WhatsApp</label>
+                      <input
+                        id="auto-customer-whatsapp"
+                        name="whatsapp"
+                        type="tel"
+                        className="form-input"
+                        placeholder="08xxxxxxxxxx"
+                        required
+                        value={buyerWa}
+                        onChange={(e) => setBuyerWa(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="panel">
+                <h2>Pilih Metode Pembayaran Otomatis</h2>
+                <div className="payment-grid">
+                  {[
+                    ['QRIS', QrCode],
+                    ['Virtual Account', Landmark],
+                    ['E-Wallet', Wallet],
+                    ['Bank Transfer', CreditCard],
+                  ].map(([label, I]) => {
+                    const Icon = I as typeof QrCode;
+                    return (
+                      <Button
+                        key={String(label)}
+                        type="button"
+                        variant="ghost"
+                        className={`payment-option ${autoMethod === label ? 'payment-selected' : ''}`}
+                        onClick={() => setAutoMethod(label as typeof autoMethod)}
+                        aria-pressed={autoMethod === label}
+                      >
+                        <Icon />
+                        {String(label)}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="notice mt-5">
+                  <Info /> Terintegrasi langsung dengan payment gateway. Mendukung semua aplikasi e-wallet & m-banking via QRIS.
+                </div>
+              </div>
+
+              <Button type="submit" size="lg" disabled={busy} className="btn-hover-lift">
+                {busy ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" /> Menyiapkan Pembayaran...
+                  </>
+                ) : (
+                  <>
+                    Lanjut ke Pembayaran Otomatis <ArrowRight />
+                  </>
+                )}
+              </Button>
+            </form>
+          ) : (
+            <div className="panel form-stack text-center">
+              <h2 className="text-xl font-bold">Bayar dengan {autoMethod}</h2>
+              <p className="text-sm text-muted-foreground">
+                Nomor Pesanan: <strong className="font-mono text-foreground">{pakasirData.order_id}</strong>
+              </p>
+
+              {pakasirData.qr_string ? (
+                <div className="my-4 flex flex-col items-center">
+                  <QrCodeDisplay text={pakasirData.qr_string} size={220} />
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Scan QRIS di atas dengan GoPay, OVO, Dana, ShopeePay, BCA, atau Livin Mandiri.
+                  </p>
+                  <div className="mt-4 flex items-center justify-between gap-4 rounded-lg bg-secondary/40 p-3 text-sm w-full max-w-sm">
+                    <span>Total Tagihan:</span>
+                    <strong className="text-base text-primary">
+                      {money(pakasirData.total_payment || store.total)}
+                    </strong>
+                  </div>
+                </div>
+              ) : (
+                <div className="my-6 rounded-lg border border-border p-5 text-left">
+                  <p className="text-xs text-muted-foreground">Link Pembayaran Gateway:</p>
+                  <a
+                    href={pakasirData.payment_link || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+                  >
+                    Buka Halaman Pembayaran <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 pt-4 border-t border-border">
+                <Button
+                  onClick={handleConfirmAutomaticPaid}
+                  disabled={busy}
+                  size="lg"
+                  className="w-full btn-hover-lift bg-success hover:bg-success/90 text-white"
+                >
+                  {busy ? (
+                    <Loader2 className="animate-spin h-4 w-4" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" /> Saya Sudah Membayar
+                    </>
+                  )}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setPakasirData(null)}>
+                  Ganti Metode Pembayaran
+                </Button>
+              </div>
+            </div>
+          )
         )}
 
         <OrderSummary checkout />
@@ -358,50 +730,110 @@ export function Checkout(){
     </div>
   );
 }
-export function CheckoutSuccess(){
-  const { orders } = useMarketplace();
-  const order = orders.find(o => o.status === 'Paid') || orders[0];
+
+export function CheckoutSuccess() {
+  const store = useMarketplace();
+  const adminWhatsapp = store.settings['admin_whatsapp'] || '085882846665';
+  const cleanAdminWa = adminWhatsapp.replace(/\D/g, '').replace(/^0/, '62');
+
+  // Find the latest order for this customer
+  const ownOrders = store.orders.filter((o) => o.customer.email === store.session?.email);
+  const latestOrder = ownOrders[0] || store.orders[0];
+  const isPending = latestOrder?.status === 'Pending';
+
   return (
     <div className="site-container py-16">
       <div className="mx-auto max-w-xl text-center">
-        <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-full bg-success/15 text-success">
-          <CheckCircle2 className="h-8 w-8" />
+        <div
+          className={`mx-auto mb-6 grid h-16 w-16 place-items-center rounded-full ${
+            isPending ? 'bg-amber-500/15 text-amber-500' : 'bg-success/15 text-success'
+          }`}
+        >
+          {isPending ? <Clock className="h-8 w-8" /> : <CheckCircle2 className="h-8 w-8" />}
         </div>
-        <div className="eyebrow justify-center">Transaksi Selesai</div>
-        <h1 className="mt-5 text-4xl font-medium">Pembayaran Berhasil Diterima.</h1>
-        <p className="mt-5 text-sm leading-7 text-muted-foreground">
-          {order ? `Pesanan ${order.id} telah tercatat dan produk aktif di akun Anda. ` : ''}
-          Lisensi & akses unduhan source code dapat langsung Anda kelola sekarang.
+        <div className="eyebrow justify-center">
+          {isPending ? 'Menunggu Konfirmasi Admin' : 'Transaksi Selesai'}
+        </div>
+        <h1 className="mt-5 text-3xl sm:text-4xl font-bold">
+          {isPending ? 'Pesanan Berhasil Dicatat!' : 'Pembayaran Berhasil Diterima.'}
+        </h1>
+        <p className="mt-4 text-sm leading-7 text-muted-foreground">
+          {isPending ? (
+            <>
+              Pesanan <strong>{latestOrder?.id}</strong> telah masuk ke antrean verifikasi admin. Pastikan Anda telah mengirimkan bukti transfer ke WhatsApp admin <strong>{adminWhatsapp}</strong>. Setelah disetujui (Acc), akses unduhan source code akan otomatis aktif.
+            </>
+          ) : (
+            <>
+              {latestOrder ? `Pesanan ${latestOrder.id} telah disetujui. ` : ''}
+              Lisensi resmi dan akses unduhan source code aplikasi Anda telah aktif dan siap diunduh sekarang.
+            </>
+          )}
         </p>
-        {order && (
+
+        {latestOrder && (
           <div className="panel mt-8 text-left">
-            <h2>Rincian Transaksi</h2>
+            <h2>Rincian Pesanan</h2>
             <div className="summary-row">
               <span>Nomor Invoice</span>
-              <span className="font-mono">{order.id}</span>
+              <span className="font-mono font-semibold">{latestOrder.id}</span>
             </div>
             <div className="summary-row">
-              <span>Total Dibayar</span>
-              <strong>{money(order.total)}</strong>
+              <span>Total Pembayaran</span>
+              <strong className="text-primary">{money(latestOrder.total)}</strong>
             </div>
             <div className="summary-row">
               <span>Metode Pembayaran</span>
-              <span>{order.paymentMethod}</span>
+              <span>{latestOrder.paymentMethod}</span>
             </div>
-            <span className="status status-positive mt-3 inline-block">Status: Berhasil (Paid)</span>
+            <div className="summary-row">
+              <span>Status Pesanan</span>
+              <span
+                className={`status ${
+                  isPending ? 'status-pending' : 'status-positive'
+                }`}
+              >
+                {isPending ? 'Menunggu Verifikasi Admin (Pending)' : 'Lunas & Disetujui (Paid)'}
+              </span>
+            </div>
           </div>
         )}
+
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Button asChild className="btn-hover-lift">
-            <Link to="/account/downloads">
-              <Download className="mr-2 h-4 w-4" /> Buka Halaman Unduhan
-            </Link>
-          </Button>
-          <Button variant="outline" asChild className="btn-hover-lift">
-            <Link to="/products">
-              Jelajahi Produk Lainnya <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          {isPending ? (
+            <>
+              <Button
+                asChild
+                size="lg"
+                className="btn-hover-lift bg-[#25D366] hover:bg-[#20ba59] text-white"
+              >
+                <a
+                  href={`https://wa.me/${cleanAdminWa}?text=${encodeURIComponent(
+                    `Halo Admin DITSSTORE, saya ingin konfirmasi transfer untuk pesanan ${latestOrder?.id || ''}. Mohon di-acc ya, terima kasih!`,
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" /> Hubungi Admin di WhatsApp
+                </a>
+              </Button>
+              <Button variant="outline" asChild size="lg" className="btn-hover-lift">
+                <Link to="/account/orders">Lihat Pesanan Saya</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button asChild size="lg" className="btn-hover-lift">
+                <Link to="/account/downloads">
+                  <Download className="mr-2 h-4 w-4" /> Buka Halaman Unduhan
+                </Link>
+              </Button>
+              <Button variant="outline" asChild size="lg" className="btn-hover-lift">
+                <Link to="/products">
+                  Jelajahi Produk Lainnya <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>
