@@ -33,6 +33,7 @@ import { Route as AdminProductsRouteImport } from './routes/admin.products_'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
+import { Route as OrderIdRouteImport } from './routes/order.$id'
 import { Route as ProductsSlugRouteImport } from './routes/products.$slug'
 import { Route as AdminProductsNewRouteImport } from './routes/admin.products.new'
 import { Route as AdminProductsIdEditRouteImport } from './routes/admin.products.$id.edit'
@@ -157,6 +158,11 @@ const DemoSlugRoute = DemoSlugRouteImport.update({
   path: '/demo/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrderIdRoute = OrderIdRouteImport.update({
+  id: '/order/$id',
+  path: '/order/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductsSlugRoute = ProductsSlugRouteImport.update({
   id: '/products/$slug',
   path: '/products/$slug',
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/demo/$slug': typeof DemoSlugRoute
+  '/order/$id': typeof OrderIdRoute
   '/products/$slug': typeof ProductsSlugRoute
   '/admin/products/new': typeof AdminProductsNewRoute
   '/admin/products/$id/edit': typeof AdminProductsIdEditRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/demo/$slug': typeof DemoSlugRoute
+  '/order/$id': typeof OrderIdRoute
   '/products/$slug': typeof ProductsSlugRoute
   '/admin/products/new': typeof AdminProductsNewRoute
   '/admin/products/$id/edit': typeof AdminProductsIdEditRoute
@@ -257,6 +265,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/demo/$slug': typeof DemoSlugRoute
+  '/order/$id': typeof OrderIdRoute
   '/products/$slug': typeof ProductsSlugRoute
   '/admin/products/new': typeof AdminProductsNewRoute
   '/admin/products/$id/edit': typeof AdminProductsIdEditRoute
@@ -288,6 +297,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/checkout/success'
     | '/demo/$slug'
+    | '/order/$id'
     | '/products/$slug'
     | '/admin/products/new'
     | '/admin/products/$id/edit'
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/checkout/success'
     | '/demo/$slug'
+    | '/order/$id'
     | '/products/$slug'
     | '/admin/products/new'
     | '/admin/products/$id/edit'
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/checkout/success'
     | '/demo/$slug'
+    | '/order/$id'
     | '/products/$slug'
     | '/admin/products/new'
     | '/admin/products/$id/edit'
@@ -376,6 +388,7 @@ export interface RootRouteChildren {
   AdminSettingsRoute: typeof AdminSettingsRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   DemoSlugRoute: typeof DemoSlugRoute
+  OrderIdRoute: typeof OrderIdRoute
   ProductsSlugRoute: typeof ProductsSlugRoute
   AdminProductsNewRoute: typeof AdminProductsNewRoute
   AdminProductsIdEditRoute: typeof AdminProductsIdEditRoute
@@ -551,6 +564,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/order/$id': {
+      id: '/order/$id'
+      path: '/order/$id'
+      fullPath: '/order/$id'
+      preLoaderRoute: typeof OrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/products/$slug': {
       id: '/products/$slug'
       path: '/products/$slug'
@@ -600,6 +620,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSettingsRoute: AdminSettingsRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   DemoSlugRoute: DemoSlugRoute,
+  OrderIdRoute: OrderIdRoute,
   ProductsSlugRoute: ProductsSlugRoute,
   AdminProductsNewRoute: AdminProductsNewRoute,
   AdminProductsIdEditRoute: AdminProductsIdEditRoute,

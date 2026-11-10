@@ -25,8 +25,9 @@ import { Button } from '@/components/ui/button';
 import { PageHeading } from '@/components/views/marketplace';
 import { useMarketplace } from '@/hooks/use-marketplace';
 import { money, licenseNames, priceFor } from '@/data/products';
-import { createPakasirTransaction, type PakasirCreateResponse } from '@/services/pakasir-service';
-import { QrCodeDisplay } from '@/components/ui/qr-code';
+import { createQrisgateCheckout } from '@/services/qrisgate-service';
+import { supabase } from '@/integrations/supabase/client';
+import { catalogConfigured } from '@/services/catalog-service';
 import type { License, Order } from '@/types';
 
 export function OrderSummary({ checkout = false }: { checkout?: boolean }) {
@@ -207,6 +208,10 @@ export function Checkout() {
 
   // Settings
   const paymentMode = store.settings['payment_mode'] || 'manual';
+  const useQrisgate = paymentMode === 'qrisgate';
+  const manualMode = paymentMode === 'manual';
+  const gatewayConfigured = catalogConfigured();
+  const [gatewayMethod, setGatewayMethod] = useState<'QRIS' | 'BANK_TRANSFER'>('QRIS');
   const adminWhatsapp = store.settings['admin_whatsapp'] || '085882846665';
   const cleanAdminWa = adminWhatsapp.replace(/\D/g, '').replace(/^0/, '62');
   const qrisNmid = store.settings['qris_nmid'] || 'ID1026491254490';
@@ -230,9 +235,6 @@ export function Checkout() {
     }
   }, [store.session]);
 
-  // Automatic gateway state (if enabled)
-  const [autoMethod, setAutoMethod] = useState<'QRIS' | 'Virtual Account' | 'E-Wallet' | 'Bank Transfer'>('QRIS');
-  const [pakasirData, setPakasirData] = useState<PakasirCreateResponse | null>(null);
 
   // Loading state during initial hydration
   if (!store.hydrated) {
@@ -290,7 +292,7 @@ export function Checkout() {
           </div>
           <div className="mt-6 pt-5 border-t border-border flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="h-4 w-4 text-success" />
-            Akses unduhan instan langsung aktif setelah verifikasi pembayaran.
+            Pembayaran diverifikasi oleh server; akses produk menunggu penerbitan hak unduh.
           </div>
         </div>
       </div>
@@ -365,55 +367,38 @@ Saya telah melakukan pembayaran dan melampirkan foto bukti transfer pada chat in
 
   const handleStartAutomaticPayment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!useQrisgate || !gatewayConfigured) {
+      toast.error('Gateway QRISGate memerlukan backend Supabase yang aktif.');
+      return;
+    }
     setBusy(true);
     try {
-      const res = await createPakasirTransaction(orderId, store.total, autoMethod === 'QRIS' ? 'qris' : 'payment_link');
-      setPakasirData(res);
-      toast.success('Instruksi pembayaran otomatis siap!');
-    } catch {
-      toast.error('Gagal membuat tagihan pembayaran otomatis');
+      const { data: { session } } = await supabase.auth.getSession();
+      const order = await createQrisgateCheckout({
+        items: store.cart.map(({ productId, license, quantity }) => ({ productId, license, quantity })),
+        customer_name: buyerName.trim(),
+        customer_whatsapp: buyerWa.trim(),
+        payment_method: gatewayMethod,
+      }, session?.access_token || null);
+      if (!order.checkout_url.startsWith('https://qrisgate.web.id/pay/')) throw new Error('URL pembayaran gateway tidak valid.');
+      // Order is created server-side; the browser must never mark it Paid.
+      window.location.assign(order.checkout_url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal membuat tagihan QRISGate.');
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleConfirmAutomaticPaid = async () => {
-    setBusy(true);
-    const order: Order = {
-      id: pakasirData?.order_id || orderId,
-      customer: {
-        id: 'cust_' + (store.session?.email?.replace(/[^a-zA-Z0-9]/g, '') || Date.now().toString().slice(-4)),
-        name: buyerName || store.session?.name || 'Customer LABDITS',
-        email: buyerEmail || store.session?.email || '',
-        whatsapp: buyerWa || '081234567890',
-        status: 'Active',
-      },
-      items: store.cart,
-      total: pakasirData?.total_payment || store.total,
-      date: new Date().toISOString().slice(0, 10),
-      paymentMethod: autoMethod,
-      status: 'Paid',
-      simulated: false,
-    };
-    await new Promise((r) => setTimeout(r, 500));
-    store.placeOrder(order);
-    toast.success('Pembayaran terkonfirmasi! Pesanan berhasil.');
-    void navigate({ to: '/checkout/success' });
   };
 
   return (
     <div className="site-container">
       <PageHeading
         title="Selesaikan Pemesanan Anda."
-        eyebrow={paymentMode === 'manual' ? 'Pembayaran QRIS & Transfer Bank' : 'Payment Gateway'}
-        description={
-          paymentMode === 'manual'
-            ? 'Scan QRIS DITSSTORE atau transfer SeaBank, lalu kirim bukti transfer ke WhatsApp admin.'
-            : 'Pembayaran otomatis, aman, dan instan menggunakan QRIS & Virtual Account.'
-        }
+        eyebrow={manualMode ? 'Pembayaran QRIS & Transfer Bank' : 'Payment Gateway'}
+        description={manualMode ? 'Scan QRIS DITSSTORE atau transfer SeaBank, lalu kirim bukti transfer ke WhatsApp admin.' : 'Pembayaran otomatis melalui QRISGate; status lunas diverifikasi oleh server.'}
       />
       <div className="page-body two-column">
-        {paymentMode === 'manual' ? (
+        {manualMode ? (
           <form className="form-stack" onSubmit={handleConfirmManualPayment}>
             {/* Customer Details */}
             <div className="panel">
@@ -579,9 +564,7 @@ Saya telah melakukan pembayaran dan melampirkan foto bukti transfer pada chat in
             </div>
           </form>
         ) : (
-          /* Automatic Gateway Mode */
-          !pakasirData ? (
-            <form className="form-stack" onSubmit={handleStartAutomaticPayment}>
+          <form className="form-stack" onSubmit={handleStartAutomaticPayment}>
               <div className="panel">
                 <h2>Informasi Pembeli</h2>
                 <div className="form-stack">
@@ -598,16 +581,16 @@ Saya telah melakukan pembayaran dan melampirkan foto bukti transfer pada chat in
                   </div>
                   <div className="form-grid">
                     <div className="field">
-                      <label htmlFor="auto-customer-email">Alamat Email</label>
+                      <label htmlFor="auto-customer-email">Email akun untuk pesanan</label>
                       <input
                         id="auto-customer-email"
                         name="email"
                         type="email"
                         className="form-input"
-                        required
-                        value={buyerEmail}
-                        onChange={(e) => setBuyerEmail(e.target.value)}
+                        readOnly
+                        value={store.session?.email || ''}
                       />
+                      <p className="mt-1 text-xs text-muted-foreground">Email diambil dari akun yang sedang masuk, bukan dari isian checkout.</p>
                     </div>
                     <div className="field">
                       <label htmlFor="auto-customer-whatsapp">Nomor WhatsApp</label>
@@ -629,34 +612,21 @@ Saya telah melakukan pembayaran dan melampirkan foto bukti transfer pada chat in
               <div className="panel">
                 <h2>Pilih Metode Pembayaran Otomatis</h2>
                 <div className="payment-grid">
-                  {[
-                    ['QRIS', QrCode],
-                    ['Virtual Account', Landmark],
-                    ['E-Wallet', Wallet],
-                    ['Bank Transfer', CreditCard],
-                  ].map(([label, I]) => {
-                    const Icon = I as typeof QrCode;
-                    return (
-                      <Button
-                        key={String(label)}
-                        type="button"
-                        variant="ghost"
-                        className={`payment-option ${autoMethod === label ? 'payment-selected' : ''}`}
-                        onClick={() => setAutoMethod(label as typeof autoMethod)}
-                        aria-pressed={autoMethod === label}
-                      >
-                        <Icon />
-                        {String(label)}
-                      </Button>
-                    );
-                  })}
+                  {(['QRIS', 'BANK_TRANSFER'] as const).map((method) => (
+                    <Button key={method} type="button" variant="ghost"
+                      className={`payment-option ${gatewayMethod === method ? 'payment-selected' : ''}`}
+                      onClick={() => setGatewayMethod(method)} aria-pressed={gatewayMethod === method}>
+                      {method === 'QRIS' ? <QrCode /> : <Landmark />}
+                      {method === 'QRIS' ? 'QRIS' : 'Transfer Bank'}
+                    </Button>
+                  ))}
                 </div>
                 <div className="notice mt-5">
-                  <Info /> Terintegrasi langsung dengan payment gateway. Mendukung semua aplikasi e-wallet & m-banking via QRIS.
+                  <Info /> QRISGate menambahkan kode unik ke total tagihan. Bayar nominal tepat pada halaman QRISGate; pesanan berlaku 15 menit.
                 </div>
               </div>
 
-              <Button type="submit" size="lg" disabled={busy} className="btn-hover-lift">
+              <Button type="submit" size="lg" disabled={busy || !useQrisgate || !gatewayConfigured} className="btn-hover-lift">
                 {busy ? (
                   <>
                     <Loader2 className="animate-spin mr-2 h-4 w-4" /> Menyiapkan Pembayaran...
@@ -667,62 +637,8 @@ Saya telah melakukan pembayaran dan melampirkan foto bukti transfer pada chat in
                   </>
                 )}
               </Button>
+              {(!useQrisgate || !gatewayConfigured) && <p role="alert" className="text-xs text-amber-500">Gateway belum aktif. Admin perlu memilih QRISGate dan menyiapkan backend Supabase terlebih dahulu.</p>}
             </form>
-          ) : (
-            <div className="panel form-stack text-center">
-              <h2 className="text-xl font-bold">Bayar dengan {autoMethod}</h2>
-              <p className="text-sm text-muted-foreground">
-                Nomor Pesanan: <strong className="font-mono text-foreground">{pakasirData.order_id}</strong>
-              </p>
-
-              {pakasirData.qr_string ? (
-                <div className="my-4 flex flex-col items-center">
-                  <QrCodeDisplay text={pakasirData.qr_string} size={220} />
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Scan QRIS di atas dengan GoPay, OVO, Dana, ShopeePay, BCA, atau Livin Mandiri.
-                  </p>
-                  <div className="mt-4 flex items-center justify-between gap-4 rounded-lg bg-secondary/40 p-3 text-sm w-full max-w-sm">
-                    <span>Total Tagihan:</span>
-                    <strong className="text-base text-primary">
-                      {money(pakasirData.total_payment || store.total)}
-                    </strong>
-                  </div>
-                </div>
-              ) : (
-                <div className="my-6 rounded-lg border border-border p-5 text-left">
-                  <p className="text-xs text-muted-foreground">Link Pembayaran Gateway:</p>
-                  <a
-                    href={pakasirData.payment_link || '#'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
-                  >
-                    Buka Halaman Pembayaran <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2 pt-4 border-t border-border">
-                <Button
-                  onClick={handleConfirmAutomaticPaid}
-                  disabled={busy}
-                  size="lg"
-                  className="w-full btn-hover-lift bg-success hover:bg-success/90 text-white"
-                >
-                  {busy ? (
-                    <Loader2 className="animate-spin h-4 w-4" />
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 mr-2" /> Saya Sudah Membayar
-                    </>
-                  )}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setPakasirData(null)}>
-                  Ganti Metode Pembayaran
-                </Button>
-              </div>
-            </div>
-          )
         )}
 
         <OrderSummary checkout />

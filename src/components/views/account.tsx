@@ -10,6 +10,7 @@ import { money, licenseNames } from '@/data/products';
 import { mockService } from '@/services/mock-service';
 import { catalogConfigured } from '@/services/catalog-service';
 import { supabase } from '@/integrations/supabase/client';
+import { QrisgateHistory } from '@/components/views/qrisgate-history';
 function SupabaseLogin(){
   const navigate=useNavigate();
   const store = useMarketplace();
@@ -31,19 +32,11 @@ function SupabaseLogin(){
             data: { name: fullName || email.split('@')[0] }
           }
         });
-        if (error) {
-          // If Supabase email confirmation or rate limit occurs, create customer session directly
-          const isRateLimit = (error as { status?: number; message?: string }).status === 429 ||
-            /rate limit|email/i.test((error as { message?: string }).message || '');
-          if (isRateLimit) {
-            const customerName = fullName || email.split('@')[0] || 'Customer';
-            store.setSession({ name: customerName, email, role: 'customer' });
-            toast.success('Akun pelanggan berhasil didaftarkan!');
-            const redirectParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') : null;
-            void navigate({ to: (redirectParam || '/checkout') as any });
-            return;
-          }
-          throw error;
+        if (error) throw error;
+        if (!signUpData.session) {
+          toast.success('Pendaftaran diterima. Periksa email untuk verifikasi, lalu masuk sebelum membeli.');
+          setMode('login');
+          return;
         }
         const customerName = fullName || email.split('@')[0] || 'Customer';
         store.setSession({ name: customerName, email, role: 'customer' });
@@ -230,8 +223,9 @@ export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downlo
       </div>
     </>}
     {view==='orders'&&<div className="panel">
-      <h2>Riwayat Seluruh Pesanan</h2>
+      <h2>Riwayat Seluruh Pesanan (Demo/Manual)</h2>
       <OrdersTable orders={own}/>
+      {catalogConfigured() && <QrisgateHistory />}
     </div>}
     {(view==='downloads'||view==='overview')&&<>
       <div className="section-heading mt-8">
@@ -256,10 +250,10 @@ export function AccountPage({view='overview'}:{view?:'overview'|'orders'|'downlo
             </div>
             <div className="summary-row"><span>Lisensi</span><span>{licenseNames[item.license]}</span></div>
             <div className="summary-row"><span>Kode Invoice</span><span className="font-mono text-[10px]">INV-{item.orderId}-{p.id}</span></div>
-            <div className="notice mb-4"><Info/>Akses unduhan source code penuh dan panduan instalasi resmi.</div>
+            <div className="notice mb-4"><Info/>Panduan contoh (demo) — akses source code resmi diberikan oleh admin setelah pembayaran dikonfirmasi.</div>
             <div className="flex flex-wrap gap-3">
-              <Button size="sm" onClick={()=>{mockService.downloadExample(p.name);toast.success('Source code / panduan berhasil diunduh')}}>
-                <Download/>Unduh Source Code
+              <Button size="sm" onClick={()=>{mockService.downloadExample(p.name);toast.success('Panduan contoh berhasil diunduh')}}>
+                <Download/>Panduan contoh (demo)
               </Button>
               <Button size="sm" variant="outline" asChild>
                 <Link to="/support">Hubungi Dukungan<Mail/></Link>

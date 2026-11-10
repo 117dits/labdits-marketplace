@@ -1293,8 +1293,11 @@ export function AdminSettings() {
                 <option value="manual">
                   Manual — QRIS & Bank Transfer (Kirim Bukti TF via WhatsApp ke Admin)
                 </option>
-                <option value="automatic">
-                  Otomatis — Payment Gateway (QRIS Otomatis / Virtual Account)
+                <option value="qrisgate">
+                  Otomatis — QRISGate (QRIS / Transfer Bank)
+                </option>
+                <option value="automatic" disabled>
+                  Gateway lama tidak tersedia — pilih QRISGate
                 </option>
               </select>
               <p className="mt-1 text-[11px] text-muted-foreground">
