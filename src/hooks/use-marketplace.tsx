@@ -42,19 +42,36 @@ const readInitialSession = (): DemoSession | null => {
   }
 };
 export function MarketplaceProvider({children}:{children:ReactNode}) {
- const [state,setState] = useState<MarketplaceState>({products:seedProducts,cart:readInitialCart(),orders:configured?[]:seedOrders,session:readInitialSession(),settings:{storeName:'LABDITS',tagline:'Built to Impress. Ready to Deploy.',email:'',instagram:'',github:'',payment_mode:'manual',admin_whatsapp:'085882846665',qris_nmid:'ID1026491254490',qris_merchant:'DITSSTORE - SOFTWARE',bank_name:'SeaBank',bank_account_number:'9014 7615 4832',bank_account_name:'Muhammad Raditya Anwar'}});
+ const [state,setState] = useState<MarketplaceState>({products:seedProducts,cart:readInitialCart(),orders:configured?[]:seedOrders,session:configured?null:readInitialSession(),settings:{storeName:'LABDITS',tagline:'Built to Impress. Ready to Deploy.',email:'',instagram:'',github:'',payment_mode:'manual',admin_whatsapp:'085882846665',qris_nmid:'ID1026491254490',qris_merchant:'DITSSTORE - SOFTWARE',bank_name:'SeaBank',bank_account_number:'9014 7615 4832',bank_account_name:'Muhammad Raditya Anwar'}});
  const [hydrated,setHydrated]=useState(false);
  useEffect(()=>{
    let active=true;
    if (!catalog) { const stored=mockService.read(); if(stored) setState(stored); setHydrated(true); return; }
+   let requestId=0;
    const load=async()=>{
+     const currentRequest=++requestId;
      try {
-       const [products,settings,{data:{user}}]=await Promise.all([catalog.products(),catalog.settings(),supabase.auth.getUser()]);
-       const {data:roles}=user ? await supabase.from('user_roles').select('role').eq('user_id',user.id) : {data:null};
+       const {data:{user},error:authError}=await supabase.auth.getUser();
+       if(authError) throw authError;
+       const {data:roles,error:rolesError}=user ? await supabase.from('user_roles').select('role').eq('user_id',user.id) : {data:null,error:null};
+       if(rolesError) throw rolesError;
+       const activeSession: DemoSession | null = user
+         ? { name: user.user_metadata?.['name'] || user.email || 'User', email: user.email || '', role: roles?.some(r => r.role === 'admin') ? 'owner' : 'customer' }
+         : null;
+       if(active && currentRequest===requestId) {
+         setState(s=>({...s,session:activeSession}));
+         setHydrated(true);
+       }
+       const [products,settings]=await Promise.all([
+         catalog.products().catch(() => null),
+         catalog.settings().catch(() => null),
+       ]);
+       if (!products || !settings) toast.error('Sebagian data katalog tidak dapat diakses.');
+       const currentSettings = settings ?? {};
        let remoteOrders: Order[] = [];
-       if (settings['orders']) {
+       if (currentSettings['orders']) {
          try {
-           remoteOrders = typeof settings['orders'] === 'string' ? JSON.parse(settings['orders']) : (settings['orders'] as unknown as Order[]);
+           remoteOrders = typeof currentSettings['orders'] === 'string' ? JSON.parse(currentSettings['orders']) : (currentSettings['orders'] as unknown as Order[]);
          } catch {}
        }
        let localOrders: Order[] = [];
@@ -68,19 +85,9 @@ export function MarketplaceProvider({children}:{children:ReactNode}) {
        });
        const mergedOrders = Array.from(orderMap.values());
 
-       let customerSession: DemoSession | null = null;
-       try {
-         const rawCust = localStorage.getItem('labdits_customer_session');
-         if (rawCust) customerSession = JSON.parse(rawCust);
-       } catch {}
-
-       const activeSession: DemoSession | null = user
-         ? { name: user.user_metadata?.['name'] || user.email || 'User', email: user.email || '', role: roles?.some(r => r.role === 'admin') ? 'owner' : 'customer' }
-         : customerSession;
-
-       if(active) setState(s=>({...s,products,settings:{...s.settings,...settings},orders:mergedOrders,session:activeSession}));
-     } catch { if(active) toast.error('Katalog tidak dapat diakses; menampilkan mode offline.'); }
-     if(active) setHydrated(true);
+       if(active && currentRequest===requestId) setState(s=>({...s,products:products ?? s.products,settings:{...s.settings,...currentSettings},orders:mergedOrders}));
+     } catch { if(active && currentRequest===requestId) { setState(s=>({...s,session:null})); toast.error('Sesi akun tidak dapat diverifikasi. Silakan coba masuk kembali.'); } }
+     if(active && currentRequest===requestId) setHydrated(true);
    };
    void load();
    const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{setTimeout(()=>{void load();},0);});

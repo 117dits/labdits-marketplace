@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Package, Download, ShoppingBag, ArrowUpRight, ShieldCheck, Mail, Info, Clock, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,10 +19,19 @@ function SupabaseLogin(){
   const [fullName,setFullName]=useState('');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
+  const submitting=useRef(false);
+  useEffect(() => {
+    if (store.hydrated && store.session && !submitting.current) {
+      void navigate({ to: store.session.role === 'owner' ? '/admin' : '/account', replace: true });
+    }
+  }, [store.hydrated, store.session, navigate]);
+  if (!store.hydrated) return <div className="site-container py-20 text-center" role="status">Memeriksa sesi akun…</div>;
+  if (store.session) return <div className="site-container py-20 text-center" role="status">Mengalihkan ke dashboard…</div>;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
+    submitting.current=true;
     try {
       if (mode === 'register') {
         const { data: signUpData, error } = await supabase.auth.signUp({
@@ -42,22 +51,28 @@ function SupabaseLogin(){
         store.setSession({ name: customerName, email, role: 'customer' });
         toast.success('Pendaftaran berhasil! Akun Anda telah aktif.');
         const redirectParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') : null;
-        void navigate({ to: (redirectParam || '/checkout') as any });
+        void navigate({ to: (redirectParam === '/checkout' ? '/checkout' : '/account') as any });
       } else {
         const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!authData.user) throw new Error('Sesi login tidak tersedia. Silakan coba lagi.');
+        const { data: roles, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', authData.user.id);
+        if (roleError) throw roleError;
+        const isAdmin = Boolean(roles?.some(r => r.role === 'admin'));
+        store.setSession({
+          name: authData.user.user_metadata?.['name'] || authData.user.email || 'User',
+          email: authData.user.email || '',
+          role: isAdmin ? 'owner' : 'customer',
+        });
         toast.success('Berhasil masuk.');
-        let isAdmin = false;
-        if (authData.user) {
-          const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', authData.user.id);
-          isAdmin = Boolean(roles?.some(r => r.role === 'admin'));
-        }
         const redirectParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') : null;
-        void navigate({ to: (isAdmin ? '/admin' : (redirectParam || '/account')) as any });
+        const customerTarget = redirectParam === '/checkout' ? '/checkout' : '/account';
+        void navigate({ to: (isAdmin ? '/admin' : customerTarget) as any });
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Terjadi kesalahan autentikasi');
     } finally {
+      submitting.current=false;
       setBusy(false);
     }
   };
